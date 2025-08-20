@@ -1,0 +1,110 @@
+"""
+Configuration settings for Kindle Reading Assistant
+"""
+import os
+from pathlib import Path
+from typing import Dict, Any
+
+
+class Config:
+    """Configuration class for the application"""
+    
+    # Directories
+    PROJECT_ROOT = Path(__file__).parent.parent.parent
+    MATERIAL_DIR = PROJECT_ROOT / "material"
+    OUTPUT_DIR = PROJECT_ROOT / "obsidian_vault"
+    DATA_DIR = PROJECT_ROOT / "data"
+    LOGS_DIR = PROJECT_ROOT / "logs"
+    
+    # File patterns
+    KINDLE_HTML_PATTERN = "*.html"
+    
+    # AI Analysis settings
+    AI_MOCK_MODE = True
+    AI_MAX_CONCEPTS = 5
+    AI_MAX_THEMES = 3
+    AI_MAX_EMOTIONS = 3
+    
+    # LLM API settings
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_MODEL = "gpt-4o-mini"  # Cost-effective model for analysis
+    OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+    OPENAI_MAX_TOKENS = 2000
+    OPENAI_TEMPERATURE = 0.1
+    
+    # API cost control
+    MAX_DAILY_API_COST = 10.0  # USD
+    BATCH_PROCESSING_SIZE = 5
+    ENABLE_CACHING = True
+    CACHE_TTL_HOURS = 24
+    
+    # Local model settings (backup)
+    OLLAMA_ENABLED = False
+    OLLAMA_MODEL = "qwen2.5:32b"
+    OLLAMA_BASE_URL = "http://localhost:11434"
+    
+    # Obsidian settings
+    OBSIDIAN_BOOKS_DIR = "books"
+    OBSIDIAN_CONCEPTS_DIR = "concepts"
+    OBSIDIAN_PEOPLE_DIR = "people"
+    OBSIDIAN_THEMES_DIR = "themes"
+    
+    # Processing settings
+    MIN_HIGHLIGHT_LENGTH = 10
+    MAX_HIGHLIGHT_LENGTH = 2000
+    BATCH_SIZE = 10
+    
+    # Logging settings
+    LOG_LEVEL = "INFO"
+    LOG_FILE = "kindle_assistant.log"
+    LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    
+    # Knowledge graph settings
+    MIN_RELATIONSHIP_WEIGHT = 0.1
+    MAX_NODES_PER_TYPE = 100
+    
+    @classmethod
+    def create_directories(cls):
+        """Create necessary directories"""
+        directories = [
+            cls.MATERIAL_DIR,
+            cls.OUTPUT_DIR,
+            cls.DATA_DIR,
+            cls.LOGS_DIR,
+            cls.OUTPUT_DIR / cls.OBSIDIAN_BOOKS_DIR,
+            cls.OUTPUT_DIR / cls.OBSIDIAN_CONCEPTS_DIR,
+            cls.OUTPUT_DIR / cls.OBSIDIAN_PEOPLE_DIR,
+            cls.OUTPUT_DIR / cls.OBSIDIAN_THEMES_DIR
+        ]
+        
+        for directory in directories:
+            directory.mkdir(parents=True, exist_ok=True)
+    
+    @classmethod
+    def get_kindle_files(cls) -> list:
+        """Get list of Kindle HTML files"""
+        if not cls.MATERIAL_DIR.exists():
+            return []
+        
+        return list(cls.MATERIAL_DIR.glob(cls.KINDLE_HTML_PATTERN))
+    
+    @classmethod
+    def to_dict(cls) -> Dict[str, Any]:
+        """Convert config to dictionary"""
+        return {
+            "project_root": str(cls.PROJECT_ROOT),
+            "material_dir": str(cls.MATERIAL_DIR),
+            "output_dir": str(cls.OUTPUT_DIR),
+            "ai_mock_mode": cls.AI_MOCK_MODE,
+            "max_concepts": cls.AI_MAX_CONCEPTS,
+            "max_themes": cls.AI_MAX_THEMES,
+            "max_emotions": cls.AI_MAX_EMOTIONS,
+            "min_highlight_length": cls.MIN_HIGHLIGHT_LENGTH,
+            "max_highlight_length": cls.MAX_HIGHLIGHT_LENGTH,
+            "batch_size": cls.BATCH_SIZE,
+            "log_level": cls.LOG_LEVEL
+        }
+
+
+# Initialize directories
+Config.create_directories()
