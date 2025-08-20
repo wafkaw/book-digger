@@ -4,6 +4,10 @@ Configuration settings for Kindle Reading Assistant
 import os
 from pathlib import Path
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class Config:
@@ -15,53 +19,58 @@ class Config:
     OUTPUT_DIR = PROJECT_ROOT / "obsidian_vault"
     DATA_DIR = PROJECT_ROOT / "data"
     LOGS_DIR = PROJECT_ROOT / "logs"
+    CACHE_DIR = PROJECT_ROOT / "data" / "cache"
     
     # File patterns
     KINDLE_HTML_PATTERN = "*.html"
     
     # AI Analysis settings
-    AI_MOCK_MODE = True
-    AI_MAX_CONCEPTS = 5
-    AI_MAX_THEMES = 3
-    AI_MAX_EMOTIONS = 3
+    AI_MOCK_MODE = os.getenv("AI_MOCK_MODE", "false").lower() == "true"
+    AI_MAX_CONCEPTS = int(os.getenv("AI_MAX_CONCEPTS", "5"))
+    AI_MAX_THEMES = int(os.getenv("AI_MAX_THEMES", "3"))
+    AI_MAX_EMOTIONS = int(os.getenv("AI_MAX_EMOTIONS", "3"))
     
     # LLM API settings
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    OPENAI_MODEL = "gpt-4o-mini"  # Cost-effective model for analysis
-    OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
-    OPENAI_MAX_TOKENS = 2000
-    OPENAI_TEMPERATURE = 0.1
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")  # Optional custom base URL for OpenAI-compatible APIs
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
+    OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.1"))
     
     # API cost control
-    MAX_DAILY_API_COST = 10.0  # USD
-    BATCH_PROCESSING_SIZE = 5
-    ENABLE_CACHING = True
-    CACHE_TTL_HOURS = 24
+    MAX_DAILY_API_COST = float(os.getenv("MAX_DAILY_API_COST", "10.0"))
+    BATCH_PROCESSING_SIZE = int(os.getenv("BATCH_PROCESSING_SIZE", "5"))
+    ENABLE_CACHING = os.getenv("ENABLE_CACHING", "true").lower() == "true"
+    CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "24"))
     
     # Local model settings (backup)
-    OLLAMA_ENABLED = False
-    OLLAMA_MODEL = "qwen2.5:32b"
-    OLLAMA_BASE_URL = "http://localhost:11434"
+    OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "false").lower() == "true"
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:32b")
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    
+    # Redis cache settings
+    REDIS_URL = os.getenv("REDIS_URL")
     
     # Obsidian settings
-    OBSIDIAN_BOOKS_DIR = "books"
-    OBSIDIAN_CONCEPTS_DIR = "concepts"
-    OBSIDIAN_PEOPLE_DIR = "people"
-    OBSIDIAN_THEMES_DIR = "themes"
+    OBSIDIAN_BOOKS_DIR = os.getenv("OBSIDIAN_BOOKS_DIR", "books")
+    OBSIDIAN_CONCEPTS_DIR = os.getenv("OBSIDIAN_CONCEPTS_DIR", "concepts")
+    OBSIDIAN_PEOPLE_DIR = os.getenv("OBSIDIAN_PEOPLE_DIR", "people")
+    OBSIDIAN_THEMES_DIR = os.getenv("OBSIDIAN_THEMES_DIR", "themes")
     
     # Processing settings
-    MIN_HIGHLIGHT_LENGTH = 10
-    MAX_HIGHLIGHT_LENGTH = 2000
-    BATCH_SIZE = 10
+    MIN_HIGHLIGHT_LENGTH = int(os.getenv("MIN_HIGHLIGHT_LENGTH", "10"))
+    MAX_HIGHLIGHT_LENGTH = int(os.getenv("MAX_HIGHLIGHT_LENGTH", "2000"))
+    BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10"))
     
     # Logging settings
-    LOG_LEVEL = "INFO"
-    LOG_FILE = "kindle_assistant.log"
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FILE = os.getenv("LOG_FILE", "kindle_assistant.log")
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     
     # Knowledge graph settings
-    MIN_RELATIONSHIP_WEIGHT = 0.1
-    MAX_NODES_PER_TYPE = 100
+    MIN_RELATIONSHIP_WEIGHT = float(os.getenv("MIN_RELATIONSHIP_WEIGHT", "0.1"))
+    MAX_NODES_PER_TYPE = int(os.getenv("MAX_NODES_PER_TYPE", "100"))
     
     @classmethod
     def create_directories(cls):
@@ -71,6 +80,7 @@ class Config:
             cls.OUTPUT_DIR,
             cls.DATA_DIR,
             cls.LOGS_DIR,
+            cls.CACHE_DIR,
             cls.OUTPUT_DIR / cls.OBSIDIAN_BOOKS_DIR,
             cls.OUTPUT_DIR / cls.OBSIDIAN_CONCEPTS_DIR,
             cls.OUTPUT_DIR / cls.OBSIDIAN_PEOPLE_DIR,

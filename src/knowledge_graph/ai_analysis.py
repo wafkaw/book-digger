@@ -10,16 +10,38 @@ import logging
 from ..config.models import (
     Highlight, Book, AIAnalysisResult, KnowledgeNode, KnowledgeEdge, KnowledgeGraph
 )
+from ..llm import create_llm_service
 
 
 class AIAnalysisInterface:
     """AI interface for analyzing highlights and extracting knowledge"""
     
-    def __init__(self, mock_mode: bool = True):
+    def __init__(self, mock_mode: bool = False):
         self.mock_mode = mock_mode
         self.logger = logging.getLogger(__name__)
         
-        # Mock data for simulation
+        # Initialize LLM service (use real LLM by default)
+        if not mock_mode:
+            # Try to use Zhipu AI if available
+            import os
+            zhipu_key = os.getenv("ZHIPU_API_KEY")
+            if zhipu_key:
+                from ..llm.llm_service import LLMService
+                self.llm_service = LLMService(
+                    api_key=zhipu_key,
+                    base_url="https://open.bigmodel.cn/api/paas/v4",
+                    model="glm-4.5-air",
+                    mock_mode=False
+                )
+                self.logger.info("Using Zhipu AI for LLM analysis")
+            else:
+                self.llm_service = create_llm_service(mock_mode=True)
+                self.mock_mode = True
+                self.logger.warning("No API key found, falling back to mock mode")
+        else:
+            self.llm_service = create_llm_service(mock_mode=mock_mode)
+        
+        # Mock data for simulation (fallback)
         self.concepts_database = [
             "权力意志", "存在焦虑", "死亡恐惧", "爱情哲学", "婚姻自由", 
             "自我实现", "选择责任", "孤独连接", "宗教信仰", "无神论",
@@ -264,9 +286,198 @@ class AIAnalysisInterface:
         return tags
     
     def _real_ai_analyze_highlight(self, highlight: Highlight, book_id: str) -> AIAnalysisResult:
-        """Real AI analysis (placeholder for future implementation)"""
-        # This would integrate with actual AI services like OpenAI, Anthropic, etc.
-        raise NotImplementedError("Real AI analysis not implemented yet")
+        """Real AI analysis using LLM service"""
+        content = highlight.content
+        
+        try:
+            # Extract concepts using LLM
+            concepts = self._extract_llm_concepts(content)
+            
+            # Extract themes using LLM
+            themes = self._extract_llm_themes(content)
+            
+            # Extract emotions using LLM
+            emotions = self._extract_llm_emotions(content)
+            
+            # Extract people using LLM
+            people = self._extract_llm_people(content)
+            
+            # Calculate importance using LLM
+            importance_score = self._calculate_llm_importance(content)
+            
+            # Generate summary using LLM
+            summary = self._generate_llm_summary(content)
+            
+            # Generate tags
+            tags = self._generate_llm_tags(concepts, themes)
+            
+            return AIAnalysisResult(
+                highlight_id=f"{book_id}_{highlight.location.page}_{highlight.location.position}",
+                concepts=concepts,
+                themes=themes,
+                emotions=emotions,
+                people=people,
+                importance_score=importance_score,
+                summary=summary,
+                tags=tags
+            )
+            
+        except Exception as e:
+            self.logger.error(f"LLM analysis failed: {e}")
+            # Fallback to mock analysis
+            return self._mock_analyze_highlight(highlight, book_id)
+    
+    def _extract_llm_concepts(self, content: str) -> List[str]:
+        """Extract concepts using LLM"""
+        prompt = f"""
+请从以下文本中提取核心概念和关键词，返回JSON格式的列表。
+
+文本内容：
+{content}
+
+要求：
+1. 提取最重要的5个核心概念
+2. 概念应该简洁明了，通常为2-4个字
+3. 返回格式：["概念1", "概念2", "概念3", "概念4", "概念5"]
+4. 只返回JSON格式，不要其他解释
+"""
+        
+        try:
+            response = self.llm_service.generate_text(prompt)
+            # Parse JSON response
+            concepts = json.loads(response)
+            return concepts[:5]  # Limit to 5 concepts
+        except Exception as e:
+            self.logger.warning(f"Concept extraction failed: {e}")
+            return self._extract_mock_concepts(content)
+    
+    def _extract_llm_themes(self, content: str) -> List[str]:
+        """Extract themes using LLM"""
+        prompt = f"""
+请从以下文本中识别主要主题，返回JSON格式的列表。
+
+文本内容：
+{content}
+
+要求：
+1. 识别最重要的3个主题
+2. 主题应该概括文本的主要内容领域
+3. 返回格式：["主题1", "主题2", "主题3"]
+4. 只返回JSON格式，不要其他解释
+"""
+        
+        try:
+            response = self.llm_service.generate_text(prompt)
+            themes = json.loads(response)
+            return themes[:3]  # Limit to 3 themes
+        except Exception as e:
+            self.logger.warning(f"Theme extraction failed: {e}")
+            return self._extract_mock_themes(content)
+    
+    def _extract_llm_emotions(self, content: str) -> List[str]:
+        """Extract emotions using LLM"""
+        prompt = f"""
+请从以下文本中识别情感色彩，返回JSON格式的列表。
+
+文本内容：
+{content}
+
+要求：
+1. 识别文本中表达的主要情感
+2. 最多识别3种情感
+3. 返回格式：["情感1", "情感2", "情感3"]
+4. 只返回JSON格式，不要其他解释
+"""
+        
+        try:
+            response = self.llm_service.generate_text(prompt)
+            emotions = json.loads(response)
+            return emotions[:3]  # Limit to 3 emotions
+        except Exception as e:
+            self.logger.warning(f"Emotion extraction failed: {e}")
+            return self._extract_mock_emotions(content)
+    
+    def _extract_llm_people(self, content: str) -> List[str]:
+        """Extract people using LLM"""
+        prompt = f"""
+请从以下文本中识别提到的人物，返回JSON格式的列表。
+
+文本内容：
+{content}
+
+要求：
+1. 识别文本中提到的所有人名
+2. 包括真实人物和虚构人物
+3. 返回格式：["人物1", "人物2", "人物3"]
+4. 只返回JSON格式，不要其他解释
+"""
+        
+        try:
+            response = self.llm_service.generate_text(prompt)
+            people = json.loads(response)
+            return people
+        except Exception as e:
+            self.logger.warning(f"People extraction failed: {e}")
+            return self._extract_mock_people(content)
+    
+    def _calculate_llm_importance(self, content: str) -> float:
+        """Calculate importance score using LLM"""
+        prompt = f"""
+请评估以下文本的重要性，返回0.1到1.0之间的分数。
+
+文本内容：
+{content}
+
+要求：
+1. 0.1表示不重要，1.0表示非常重要
+2. 考虑内容的深度、独特性和启发性
+3. 返回格式：0.XX（只返回数字）
+4. 只返回数字，不要其他解释
+"""
+        
+        try:
+            response = self.llm_service.generate_text(prompt)
+            score = float(response.strip())
+            return max(0.1, min(1.0, score))  # Clamp between 0.1 and 1.0
+        except Exception as e:
+            self.logger.warning(f"Importance calculation failed: {e}")
+            return self._calculate_mock_importance(content)
+    
+    def _generate_llm_summary(self, content: str) -> str:
+        """Generate summary using LLM"""
+        prompt = f"""
+请为以下文本生成简洁的总结。
+
+文本内容：
+{content}
+
+要求：
+1. 总结应该简洁明了，不超过100字
+2. 抓住文本的核心观点
+3. 保持原文的风格和语气
+4. 只返回总结内容，不要其他解释
+"""
+        
+        try:
+            response = self.llm_service.generate_text(prompt)
+            return response.strip()
+        except Exception as e:
+            self.logger.warning(f"Summary generation failed: {e}")
+            return self._generate_mock_summary(content)
+    
+    def _generate_llm_tags(self, concepts: List[str], themes: List[str]) -> List[str]:
+        """Generate tags using LLM"""
+        tags = []
+        
+        # Add concept tags
+        for concept in concepts:
+            tags.append(f"#{concept}")
+        
+        # Add theme tags
+        for theme in themes:
+            tags.append(f"#{theme}")
+        
+        return tags
     
     def build_knowledge_graph(self, book: Book, analysis_results: List[AIAnalysisResult]) -> KnowledgeGraph:
         """Build knowledge graph from analysis results"""
