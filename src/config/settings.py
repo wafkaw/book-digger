@@ -29,6 +29,16 @@ class Config:
     AI_MAX_CONCEPTS = int(os.getenv("AI_MAX_CONCEPTS", "5"))
     AI_MAX_THEMES = int(os.getenv("AI_MAX_THEMES", "3"))
     AI_MAX_EMOTIONS = int(os.getenv("AI_MAX_EMOTIONS", "3"))
+    AI_BATCH_SIZE = int(os.getenv("AI_BATCH_SIZE", "5"))  # 批量处理大小
+    
+    # Analysis quality settings
+    AI_QUALITY_MODE = os.getenv("AI_QUALITY_MODE", "balanced")  # strict, balanced, permissive
+    AI_MIN_CONCEPT_LENGTH = int(os.getenv("AI_MIN_CONCEPT_LENGTH", "3"))  # 概念最小长度
+    AI_MIN_IMPORTANCE_THRESHOLD = float(os.getenv("AI_MIN_IMPORTANCE_THRESHOLD", "0.3"))  # 最低重要性阈值
+    
+    # Output settings
+    OUTPUT_AGGREGATED_MODE = os.getenv("OUTPUT_AGGREGATED_MODE", "true").lower() == "true"  # 聚合输出模式
+    OUTPUT_MAX_HIGHLIGHTS_PER_CONCEPT = int(os.getenv("OUTPUT_MAX_HIGHLIGHTS_PER_CONCEPT", "3"))  # 每个概念显示的最大标注数
     
     # LLM API settings
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -37,6 +47,8 @@ class Config:
     OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
     OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
     OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.1"))
+    OPENAI_TIMEOUT = int(os.getenv("OPENAI_TIMEOUT", "600"))  # 10分钟超时
+    OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "3"))  # 最多重试3次
     
     # API cost control
     MAX_DAILY_API_COST = float(os.getenv("MAX_DAILY_API_COST", "10.0"))

@@ -17,8 +17,7 @@ import tiktoken
 import redis
 from ..config.settings import Config
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging - remove basicConfig to avoid overriding main program's logging
 logger = logging.getLogger(__name__)
 
 
@@ -173,12 +172,16 @@ class LLMService:
                 raise ValueError("API key is required when not in mock mode")
             
             # Initialize client with optional base URL for OpenAI-compatible APIs
-            client_kwargs = {"api_key": api_key}
+            client_kwargs = {
+                "api_key": api_key,
+                "timeout": float(Config.OPENAI_TIMEOUT)  # 使用配置的超时时间
+            }
             if base_url:
                 client_kwargs["base_url"] = base_url
                 logger.info(f"Using custom base URL: {base_url}")
             
             self.client = OpenAI(**client_kwargs)
+            logger.debug(f"OpenAI client initialized with timeout: {Config.OPENAI_TIMEOUT}s")
             self.model = model
             self.base_url = base_url
             self.embedding_model = Config.OPENAI_EMBEDDING_MODEL
@@ -241,9 +244,13 @@ class LLMService:
         if Config.ENABLE_CACHING:
             self.cache_manager.set(prompt, self.model, response)
     
-    def generate_text(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generate text using OpenAI API"""
+    def generate_text(self, prompt: str, system_prompt: Optional[str] = None, max_retries: Optional[int] = None) -> str:
+        """Generate text using OpenAI API with retry mechanism"""
+        start_time = time.time()
+        logger.debug(f"Starting text generation - prompt length: {len(prompt)}")
+        
         if self.mock_mode:
+            logger.debug("Running in mock mode")
             return self._mock_generate_text(prompt, system_prompt)
         
         # Check cache first
@@ -256,44 +263,78 @@ class LLMService:
         self._check_daily_limit()
         self._reset_daily_if_needed()
         
-        try:
-            # Count input tokens
-            input_text = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            input_tokens = self._count_tokens(input_text)
-            
-            # Make API call
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature
-            )
-            
-            # Extract response
-            generated_text = response.choices[0].message.content
-            
-            # Count output tokens and calculate cost
-            output_tokens = self._count_tokens(generated_text)
-            cost = self._estimate_cost(input_tokens, output_tokens)
-            
-            # Update cost tracker
-            self.cost_tracker.add_cost(cost)
-            
-            # Cache response
-            self._cache_response(prompt, generated_text)
-            
-            logger.info(f"Generated text: {input_tokens} input tokens, {output_tokens} output tokens, ${cost:.4f}")
-            
-            return generated_text
-            
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise Exception(f"LLM generation failed: {e}")
+        if max_retries is None:
+            max_retries = Config.OPENAI_MAX_RETRIES
+        
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                logger.debug(f"Attempt {attempt + 1}/{max_retries}")
+                
+                # Count input tokens
+                input_text = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+                input_tokens = self._count_tokens(input_text)
+                logger.debug(f"Input tokens counted: {input_tokens}")
+                
+                # Prepare messages
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                    logger.debug(f"System prompt added - length: {len(system_prompt)}")
+                messages.append({"role": "user", "content": prompt})
+                
+                # Log API call details
+                logger.debug(f"Making API call to model: {self.model}, max_tokens: {self.max_tokens}, temperature: {self.temperature}")
+                api_start_time = time.time()
+                
+                # Make API call
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature
+                )
+                
+                api_end_time = time.time()
+                api_duration = api_end_time - api_start_time
+                logger.debug(f"API call completed in {api_duration:.2f}s")
+                
+                # Extract response
+                generated_text = response.choices[0].message.content
+                logger.debug(f"Generated response length: {len(generated_text)}")
+                
+                # Count output tokens and calculate cost
+                output_tokens = self._count_tokens(generated_text)
+                cost = self._estimate_cost(input_tokens, output_tokens)
+                
+                # Update cost tracker
+                self.cost_tracker.add_cost(cost)
+                
+                # Cache response
+                self._cache_response(prompt, generated_text)
+                
+                total_duration = time.time() - start_time
+                logger.info(f"Generated text: {input_tokens} input tokens, {output_tokens} output tokens, ${cost:.4f}, total time: {total_duration:.2f}s")
+                
+                return generated_text
+                
+            except Exception as e:
+                last_error = e
+                attempt_duration = time.time() - start_time
+                logger.warning(f"Attempt {attempt + 1} failed after {attempt_duration:.2f}s: {e}")
+                
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # 递增等待时间
+                    logger.info(f"Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"All {max_retries} attempts failed")
+                    logger.error(f"Prompt preview: {prompt[:100]}...")
+        
+        # All retries failed
+        error_duration = time.time() - start_time
+        logger.error(f"OpenAI API error after {error_duration:.2f}s and {max_retries} retries: {last_error}")
+        raise Exception(f"LLM generation failed after {max_retries} retries: {last_error}")
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for a list of texts"""

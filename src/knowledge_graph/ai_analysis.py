@@ -286,40 +286,27 @@ class AIAnalysisInterface:
         return tags
     
     def _real_ai_analyze_highlight(self, highlight: Highlight, book_id: str) -> AIAnalysisResult:
-        """Real AI analysis using LLM service"""
+        """Real AI analysis using LLM service with single comprehensive call"""
         content = highlight.content
         
         try:
-            # Extract concepts using LLM
-            concepts = self._extract_llm_concepts(content)
+            # Use single comprehensive analysis instead of 6 separate calls
+            analysis_result = self._comprehensive_llm_analysis(content)
             
-            # Extract themes using LLM
-            themes = self._extract_llm_themes(content)
-            
-            # Extract emotions using LLM
-            emotions = self._extract_llm_emotions(content)
-            
-            # Extract people using LLM
-            people = self._extract_llm_people(content)
-            
-            # Calculate importance using LLM
-            importance_score = self._calculate_llm_importance(content)
-            
-            # Generate summary using LLM
-            summary = self._generate_llm_summary(content)
-            
-            # Generate tags
-            tags = self._generate_llm_tags(concepts, themes)
+            # Apply intelligent filtering
+            filtered_concepts = self._filter_concepts(analysis_result.get('concepts', []))
+            filtered_themes = self._filter_themes(analysis_result.get('themes', []))
+            filtered_emotions = self._filter_emotions(analysis_result.get('emotions', []))
             
             return AIAnalysisResult(
                 highlight_id=f"{book_id}_{highlight.location.page}_{highlight.location.position}",
-                concepts=concepts,
-                themes=themes,
-                emotions=emotions,
-                people=people,
-                importance_score=importance_score,
-                summary=summary,
-                tags=tags
+                concepts=filtered_concepts[:5],  # Limit to 5 concepts after filtering
+                themes=filtered_themes[:3],     # Limit to 3 themes after filtering
+                emotions=filtered_emotions[:3], # Limit to 3 emotions after filtering
+                people=analysis_result.get('people', []),
+                importance_score=analysis_result.get('importance_score', 0.5),
+                summary=analysis_result.get('summary', content[:100]),
+                tags=self._generate_llm_tags(filtered_concepts, filtered_themes)
             )
             
         except Exception as e:
@@ -327,143 +314,199 @@ class AIAnalysisInterface:
             # Fallback to mock analysis
             return self._mock_analyze_highlight(highlight, book_id)
     
-    def _extract_llm_concepts(self, content: str) -> List[str]:
-        """Extract concepts using LLM"""
+    def _comprehensive_llm_analysis(self, content: str) -> Dict[str, Any]:
+        """Comprehensive analysis using single LLM call with improved prompts"""
         prompt = f"""
-请从以下文本中提取核心概念和关键词，返回JSON格式的列表。
+请对以下文本进行精炼的哲学分析，返回JSON格式的结果。注重质量而非数量。
 
 文本内容：
 {content}
 
-要求：
-1. 提取最重要的5个核心概念
-2. 概念应该简洁明了，通常为2-4个字
-3. 返回格式：["概念1", "概念2", "概念3", "概念4", "概念5"]
-4. 只返回JSON格式，不要其他解释
+严格要求：
+1. 核心概念（2-4个）：
+   - 必须是深层哲学概念，如"存在焦虑"、"死亡意识"、"自我超越"
+   - 禁止简单词汇："然而"、"此刻"、"时间"、"选择"等
+   - 禁止过于宽泛的词："生活"、"人生"、"思考"
+   - 优选复合概念："权力意志"、"永劫回归"、"超人理论"
+
+2. 主题分类（1-2个）：
+   - 必须是学术领域："存在主义哲学"、"精神分析学"、"伦理哲学"
+   - 避免模糊分类："人际关系"、"个人成长"、"生活感悟"
+
+3. 核心情感（1-2个）：
+   - 深层情感状态："存在焦虑"、"虚无感"、"超越渴望"
+   - 避免表面情感："开心"、"难过"、"生气"
+
+4. 人物（仅明确提及的）：完整人名，如"弗里德里希·尼采"
+
+5. 重要性评分（0.1-1.0）：基于哲学深度、思想独特性、启发价值
+
+6. 精炼总结（15字以内）：抓住最核心的哲学洞察
+
+返回格式：
+{{
+  "concepts": ["存在焦虑", "自我超越"],
+  "themes": ["存在主义哲学"],
+  "emotions": ["虚无感"],
+  "people": ["尼采"],
+  "importance_score": 0.8,
+  "summary": "探讨个体面对虚无时的超越路径"
+}}
+
+只返回JSON，无其他文字。
 """
         
         try:
             response = self.llm_service.generate_text(prompt)
             # Parse JSON response
-            concepts = json.loads(response)
-            return concepts[:5]  # Limit to 5 concepts
+            result = json.loads(response)
+            return result
         except Exception as e:
-            self.logger.warning(f"Concept extraction failed: {e}")
-            return self._extract_mock_concepts(content)
+            self.logger.warning(f"Comprehensive analysis failed: {e}")
+            # Return fallback result
+            return {
+                "concepts": self._extract_mock_concepts(content)[:3],
+                "themes": self._extract_mock_themes(content)[:2],
+                "emotions": self._extract_mock_emotions(content)[:2],
+                "people": self._extract_mock_people(content),
+                "importance_score": self._calculate_mock_importance(content),
+                "summary": self._generate_mock_summary(content)
+            }
     
-    def _extract_llm_themes(self, content: str) -> List[str]:
-        """Extract themes using LLM"""
-        prompt = f"""
-请从以下文本中识别主要主题，返回JSON格式的列表。
+    
+    
+    
+    
+    
+    def _batch_analyze_highlights(self, highlights: List[Highlight], book_id: str) -> List[AIAnalysisResult]:
+        """Batch analyze multiple highlights in single API call"""
+        if self.mock_mode:
+            # Use individual analysis for mock mode
+            return [self.analyze_highlight(highlight, book_id) for highlight in highlights]
+        
+        try:
+            # Combine all highlight contents
+            batch_content = "\n\n===标注分隔===\n\n".join([h.content for h in highlights])
+            
+            # Use comprehensive batch analysis
+            batch_results = self._comprehensive_batch_analysis(batch_content, len(highlights))
+            
+            # Create individual results
+            analysis_results = []
+            for i, highlight in enumerate(highlights):
+                result_data = batch_results.get(f'highlight_{i}', {})
+                
+                # Apply intelligent filtering to batch results
+                filtered_concepts = self._filter_concepts(result_data.get('concepts', []))
+                filtered_themes = self._filter_themes(result_data.get('themes', []))
+                filtered_emotions = self._filter_emotions(result_data.get('emotions', []))
+                
+                result = AIAnalysisResult(
+                    highlight_id=f"{book_id}_{highlight.location.page}_{highlight.location.position}",
+                    concepts=filtered_concepts[:5],
+                    themes=filtered_themes[:3], 
+                    emotions=filtered_emotions[:3],
+                    people=result_data.get('people', []),
+                    importance_score=result_data.get('importance_score', 0.5),
+                    summary=result_data.get('summary', highlight.content[:100]),
+                    tags=self._generate_llm_tags(filtered_concepts, filtered_themes)
+                )
+                analysis_results.append(result)
+            
+            return analysis_results
+            
+        except Exception as e:
+            self.logger.error(f"Batch analysis failed: {e}")
+            # Fallback to individual analysis
+            return [self.analyze_highlight(highlight, book_id) for highlight in highlights]
+    
+    def _comprehensive_batch_analysis(self, batch_content: str, num_highlights: int) -> Dict[str, Any]:
+        """Comprehensive batch analysis using single LLM call"""
+        prompt = f"""请分析以下{num_highlights}个文本段落，返回JSON格式结果。
 
 文本内容：
-{content}
+{batch_content}
 
-要求：
-1. 识别最重要的3个主题
-2. 主题应该概括文本的主要内容领域
-3. 返回格式：["主题1", "主题2", "主题3"]
-4. 只返回JSON格式，不要其他解释
-"""
+请为每个段落提取：
+1. concepts: 2-3个核心概念
+2. themes: 1-2个主题分类  
+3. emotions: 1个情感状态
+4. people: 提到的人名
+5. importance_score: 重要性分数(0.1-1.0)
+6. summary: 简短总结
+
+JSON格式：
+{{
+  "highlight_0": {{
+    "concepts": ["概念1", "概念2"],
+    "themes": ["主题1"],
+    "emotions": ["情感1"],
+    "people": ["人名1"],
+    "importance_score": 0.8,
+    "summary": "简短总结"
+  }},
+  "highlight_1": {{
+    "concepts": ["概念3", "概念4"],
+    "themes": ["主题2"],
+    "emotions": ["情感2"],
+    "people": [],
+    "importance_score": 0.6,
+    "summary": "简短总结"
+  }}
+}}
+
+只返回JSON数据："""
         
         try:
             response = self.llm_service.generate_text(prompt)
-            themes = json.loads(response)
-            return themes[:3]  # Limit to 3 themes
+            
+            # 详细记录LLM响应信息用于调试
+            self.logger.info(f"LLM response length: {len(response)} characters")
+            self.logger.info(f"LLM response (full): {repr(response)}")
+            self.logger.debug(f"LLM response preview: {response[:500]}...")
+            
+            # Clean the response - remove any non-JSON content
+            response = response.strip()
+            if not response:
+                raise ValueError("LLM returned empty response")
+                
+            if not response.startswith('{'):
+                self.logger.warning(f"Response doesn't start with '{{', trying to extract JSON...")
+                # Try to find JSON in the response
+                import re
+                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+                if json_match:
+                    response = json_match.group(0)
+                    self.logger.info(f"Extracted JSON from response: {response[:200]}...")
+                else:
+                    raise ValueError("No JSON found in response")
+            
+            result = json.loads(response)
+            self.logger.info(f"Successfully parsed JSON with {len(result)} highlights")
+            return result
+            
         except Exception as e:
-            self.logger.warning(f"Theme extraction failed: {e}")
-            return self._extract_mock_themes(content)
-    
-    def _extract_llm_emotions(self, content: str) -> List[str]:
-        """Extract emotions using LLM"""
-        prompt = f"""
-请从以下文本中识别情感色彩，返回JSON格式的列表。
-
-文本内容：
-{content}
-
-要求：
-1. 识别文本中表达的主要情感
-2. 最多识别3种情感
-3. 返回格式：["情感1", "情感2", "情感3"]
-4. 只返回JSON格式，不要其他解释
-"""
-        
-        try:
-            response = self.llm_service.generate_text(prompt)
-            emotions = json.loads(response)
-            return emotions[:3]  # Limit to 3 emotions
-        except Exception as e:
-            self.logger.warning(f"Emotion extraction failed: {e}")
-            return self._extract_mock_emotions(content)
-    
-    def _extract_llm_people(self, content: str) -> List[str]:
-        """Extract people using LLM"""
-        prompt = f"""
-请从以下文本中识别提到的人物，返回JSON格式的列表。
-
-文本内容：
-{content}
-
-要求：
-1. 识别文本中提到的所有人名
-2. 包括真实人物和虚构人物
-3. 返回格式：["人物1", "人物2", "人物3"]
-4. 只返回JSON格式，不要其他解释
-"""
-        
-        try:
-            response = self.llm_service.generate_text(prompt)
-            people = json.loads(response)
-            return people
-        except Exception as e:
-            self.logger.warning(f"People extraction failed: {e}")
-            return self._extract_mock_people(content)
-    
-    def _calculate_llm_importance(self, content: str) -> float:
-        """Calculate importance score using LLM"""
-        prompt = f"""
-请评估以下文本的重要性，返回0.1到1.0之间的分数。
-
-文本内容：
-{content}
-
-要求：
-1. 0.1表示不重要，1.0表示非常重要
-2. 考虑内容的深度、独特性和启发性
-3. 返回格式：0.XX（只返回数字）
-4. 只返回数字，不要其他解释
-"""
-        
-        try:
-            response = self.llm_service.generate_text(prompt)
-            score = float(response.strip())
-            return max(0.1, min(1.0, score))  # Clamp between 0.1 and 1.0
-        except Exception as e:
-            self.logger.warning(f"Importance calculation failed: {e}")
-            return self._calculate_mock_importance(content)
-    
-    def _generate_llm_summary(self, content: str) -> str:
-        """Generate summary using LLM"""
-        prompt = f"""
-请为以下文本生成简洁的总结。
-
-文本内容：
-{content}
-
-要求：
-1. 总结应该简洁明了，不超过100字
-2. 抓住文本的核心观点
-3. 保持原文的风格和语气
-4. 只返回总结内容，不要其他解释
-"""
-        
-        try:
-            response = self.llm_service.generate_text(prompt)
-            return response.strip()
-        except Exception as e:
-            self.logger.warning(f"Summary generation failed: {e}")
-            return self._generate_mock_summary(content)
+            self.logger.error(f"Batch comprehensive analysis failed: {e}")
+            if 'response' in locals():
+                self.logger.error(f"Complete failed response: {repr(response)}")
+                self.logger.error(f"Response type: {type(response)}")
+                self.logger.error(f"Response length: {len(response) if response else 'None'}")
+            else:
+                self.logger.error("No response received from LLM service")
+                
+            # Return basic fallback structure with minimal analysis
+            self.logger.info(f"Returning fallback analysis for {num_highlights} highlights")
+            fallback_results = {}
+            for i in range(num_highlights):
+                fallback_results[f'highlight_{i}'] = {
+                    "concepts": ["哲学思考", "个人感悟"],
+                    "themes": ["人生哲学"],
+                    "emotions": ["思考"],
+                    "people": [],
+                    "importance_score": 0.5,
+                    "summary": "重要思考片段"
+                }
+            return fallback_results
     
     def _generate_llm_tags(self, concepts: List[str], themes: List[str]) -> List[str]:
         """Generate tags using LLM"""
@@ -478,6 +521,105 @@ class AIAnalysisInterface:
             tags.append(f"#{theme}")
         
         return tags
+    
+    def _filter_concepts(self, concepts: List[str]) -> List[str]:
+        """Filter out low-value concepts"""
+        # Define forbidden concepts (too simple or common)
+        forbidden_concepts = {
+            '然而', '此刻', '时间', '选择', '思考', '生活', '人生', '世界', '生命',
+            '自己', '我们', '他们', '这个', '那个', '现在', '过去', '未来',
+            '好的', '不好', '重要', '一般', '普通', '简单', '复杂', '问题',
+            '答案', '方法', '方式', '内容', '事情', '东西', '情况', '状态',
+            '过程', '结果', '原因', '条件', '环境', '背景', '历史', '文化'
+        }
+        
+        # Define too-short concepts (configurable minimum length)
+        from ..config.settings import Config
+        min_concept_length = Config.AI_MIN_CONCEPT_LENGTH
+        
+        filtered = []
+        for concept in concepts:
+            concept = concept.strip()
+            # Skip if forbidden, too short, or too generic
+            if (concept not in forbidden_concepts and 
+                len(concept) >= min_concept_length and
+                not self._is_too_generic(concept)):
+                filtered.append(concept)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_filtered = []
+        for concept in filtered:
+            if concept not in seen:
+                seen.add(concept)
+                unique_filtered.append(concept)
+        
+        return unique_filtered
+    
+    def _filter_themes(self, themes: List[str]) -> List[str]:
+        """Filter out low-value themes"""
+        # Define forbidden themes (too vague or non-academic)
+        forbidden_themes = {
+            '生活感悟', '个人成长', '人生体验', '日常思考', '一般讨论',
+            '普通话题', '简单分析', '基础理解', '常见观点', '流行思想',
+            '大众文化', '通俗理论', '生活哲学', '人际关系', '情感交流',
+            '个人感受', '主观体验', '直觉判断', '常识理解', '表面现象'
+        }
+        
+        # Define preferred academic themes
+        academic_keywords = {
+            '哲学', '心理学', '伦理学', '形而上学', '认识论', '本体论',
+            '存在主义', '现象学', '分析哲学', '实用主义', '后现代主义',
+            '精神分析', '行为主义', '认知科学', '社会学', '政治哲学'
+        }
+        
+        filtered = []
+        for theme in themes:
+            theme = theme.strip()
+            # Skip forbidden themes
+            if theme not in forbidden_themes:
+                # Prefer themes with academic keywords
+                is_academic = any(keyword in theme for keyword in academic_keywords)
+                if is_academic or len(theme) >= 4:  # Accept longer themes even if not explicitly academic
+                    filtered.append(theme)
+        
+        # Remove duplicates
+        return list(dict.fromkeys(filtered))
+    
+    def _filter_emotions(self, emotions: List[str]) -> List[str]:
+        """Filter out low-value emotions"""
+        # Define forbidden emotions (too simple or common)
+        forbidden_emotions = {
+            '开心', '难过', '生气', '高兴', '愤怒', '快乐', '悲伤',
+            '普通', '一般', '正常', '平常', '简单', '复杂', '好奇',
+            '疑惑', '不解', '明白', '理解', '知道', '感觉', '觉得'
+        }
+        
+        # Define preferred deep emotions
+        deep_emotions = {
+            '存在焦虑', '虚无感', '超越渴望', '道德困顿', '精神痛苦',
+            '哲学惊异', '形而上学恐惧', '本体论焦虑', '死亡焦虑',
+            '自由恐惧', '选择焦虑', '责任重负', '孤独感', '异化感'
+        }
+        
+        filtered = []
+        for emotion in emotions:
+            emotion = emotion.strip()
+            # Prefer deep emotions or skip forbidden ones
+            if emotion in deep_emotions or (emotion not in forbidden_emotions and len(emotion) >= 2):
+                filtered.append(emotion)
+        
+        # Remove duplicates
+        return list(dict.fromkeys(filtered))
+    
+    def _is_too_generic(self, concept: str) -> bool:
+        """Check if concept is too generic"""
+        generic_patterns = {
+            '的', '了', '是', '有', '在', '和', '与', '或', '但', '而',
+            '所以', '因为', '如果', '虽然', '不过', '可是', '只是', '就是',
+            '什么', '怎么', '为什么', '哪里', '谁', '多少', '几个'
+        }
+        return concept in generic_patterns or len(concept) <= 1
     
     def build_knowledge_graph(self, book: Book, analysis_results: List[AIAnalysisResult]) -> KnowledgeGraph:
         """Build knowledge graph from analysis results"""
@@ -579,14 +721,19 @@ class AIAnalysisInterface:
         
         return KnowledgeGraph(nodes=nodes, edges=edges)
     
-    def analyze_book(self, book: Book) -> Dict[str, Any]:
-        """Analyze entire book and return comprehensive results"""
+    def analyze_book(self, book: Book, batch_size: int = 5) -> Dict[str, Any]:
+        """Analyze entire book using batch processing for better performance"""
         analysis_results = []
         
-        # Analyze each highlight
-        for highlight in book.highlights:
-            result = self.analyze_highlight(highlight, book.metadata.title)
-            analysis_results.append(result)
+        # Process highlights in batches
+        highlights = book.highlights
+        for i in range(0, len(highlights), batch_size):
+            batch = highlights[i:i+batch_size]
+            self.logger.info(f"Processing batch {i//batch_size + 1}/{(len(highlights) + batch_size - 1)//batch_size} with {len(batch)} highlights")
+            
+            # Batch process highlights
+            batch_results = self._batch_analyze_highlights(batch, book.metadata.title)
+            analysis_results.extend(batch_results)
         
         # Build knowledge graph
         knowledge_graph = self.build_knowledge_graph(book, analysis_results)
