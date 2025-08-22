@@ -198,7 +198,7 @@ import cytoscape from 'cytoscape'
 import dagre from 'cytoscape-dagre'
 import cola from 'cytoscape-cola'
 import coseBilkent from 'cytoscape-cose-bilkent'
-import ApiService from '@/services/api.js'
+import { ApiService } from '@/services/api.js'
 
 // 注册布局插件
 cytoscape.use(dagre)
@@ -255,8 +255,8 @@ const loadGraph = async () => {
   error.value = null
   
   try {
-    const response = await ApiService.get(`/graph/tasks/${props.taskId}/graph`)
-    graphData.value = response.data.data
+    const response = await ApiService.getGraphData(props.taskId)
+    graphData.value = response
     
     await nextTick()
     initializeGraph()
@@ -271,8 +271,8 @@ const loadGraph = async () => {
 
 const loadGraphStats = async () => {
   try {
-    const response = await ApiService.get('/graph/stats')
-    graphStats.value = response.data.data
+    const response = await ApiService.getGraphStats()
+    graphStats.value = response
   } catch (err) {
     console.error('加载图谱统计失败:', err)
   }
@@ -357,8 +357,8 @@ const setupGraphEvents = () => {
 
 const loadNeighborNodes = async (nodeId) => {
   try {
-    const response = await ApiService.get(`/graph/nodes/${nodeId}/neighbors`)
-    const neighbors = response.data.data.subgraph.elements.nodes
+    const response = await ApiService.getNodeNeighbors(nodeId)
+    const neighbors = response.subgraph.elements.nodes
     
     neighborNodes.value = neighbors
       .filter(n => n.data.id !== nodeId)
@@ -382,11 +382,9 @@ const handleSearch = async () => {
   }
   
   try {
-    const response = await ApiService.get('/graph/search', {
-      params: { q: searchQuery.value }
-    })
+    const response = await ApiService.searchGraphNodes(searchQuery.value)
     
-    const matchedNodes = response.data.data.results
+    const matchedNodes = response.results
     
     // 重置所有高亮
     cy.value.elements().removeClass('search-highlighted')
@@ -505,8 +503,8 @@ const showNeighbors = async () => {
   if (!selectedNode.value) return
   
   try {
-    const response = await ApiService.get(`/graph/nodes/${selectedNode.value.id}/neighbors`)
-    const subgraphData = response.data.data.subgraph
+    const response = await ApiService.getNodeNeighbors(selectedNode.value.id)
+    const subgraphData = response.subgraph
     
     // 用子图数据替换当前图谱
     cy.value.elements().remove()

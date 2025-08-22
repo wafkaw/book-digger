@@ -43,7 +43,7 @@ async def get_task_graph(task_id: str) -> JSONResponse:
         )
 
 
-@router.get("/graph/search", summary="搜索图谱节点")
+@router.get("/search", summary="搜索图谱节点")
 async def search_graph_nodes(
     q: str = Query(..., description="搜索关键词"),
     type: Optional[str] = Query(None, description="节点类型过滤 (concept/theme/person)"),
@@ -80,7 +80,7 @@ async def search_graph_nodes(
         )
 
 
-@router.get("/graph/nodes/{node_id}/neighbors", summary="获取节点邻居")
+@router.get("/nodes/{node_id}/neighbors", summary="获取节点邻居")
 async def get_node_neighbors(node_id: str) -> JSONResponse:
     """获取指定节点及其邻居的子图数据"""
     try:
@@ -165,7 +165,7 @@ async def get_graph_stats() -> JSONResponse:
         )
 
 
-@router.get("/graph/export/{task_id}", summary="导出图谱数据")
+@router.get("/export/{task_id}", summary="导出图谱数据")
 async def export_graph_data(
     task_id: str,
     format: str = Query("json", description="导出格式 (json/graphml/gexf)")

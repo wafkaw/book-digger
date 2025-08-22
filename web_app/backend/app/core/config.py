@@ -18,15 +18,15 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:8080"]
     
     # Database
     DATABASE_URL: str = "sqlite:///./kindle_web.db"
     
-    # Redis & Celery
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    # Redis & Celery (DISABLED - using sync processing)
+    # REDIS_URL: str = "redis://localhost:6379/0"
+    # CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    # CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
     
     # File Upload
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB

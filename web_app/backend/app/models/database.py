@@ -37,3 +37,14 @@ def create_tables():
     Create all database tables
     """
     Base.metadata.create_all(bind=engine)
+
+
+def init_db():
+    """
+    Initialize database tables
+    """
+    # Import models to register them with Base
+    from app.models import models
+    
+    # Create all tables
+    Base.metadata.create_all(bind=engine)

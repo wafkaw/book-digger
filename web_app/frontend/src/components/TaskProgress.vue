@@ -253,9 +253,9 @@ const statusText = computed(() => {
 const stageText = computed(() => {
   switch (props.task?.stage) {
     case 'uploaded': return '文件已上传'
-    case 'parsing': return '正在解析文件结构'
-    case 'ai_analysis': return 'AI 正在分析内容'
-    case 'graph_generation': return '正在生成知识图谱'
+    case 'parsing': return '正在解析Kindle文件结构'
+    case 'ai_analysis': return 'AI 正在进行语义分析'
+    case 'obsidian_generation': return '正在生成Obsidian知识网络'
     case 'completed': return '所有步骤已完成'
     default: return ''
   }
@@ -263,7 +263,7 @@ const stageText = computed(() => {
 
 const processingSteps = computed(() => {
   const currentStage = props.task?.stage || 'uploaded'
-  const stages = ['uploaded', 'parsing', 'ai_analysis', 'graph_generation', 'completed']
+  const stages = ['uploaded', 'parsing', 'ai_analysis', 'obsidian_generation', 'completed']
   const currentIndex = stages.indexOf(currentStage)
   
   return [
@@ -277,23 +277,23 @@ const processingSteps = computed(() => {
     },
     {
       title: 'AI 语义分析',
-      description: '使用人工智能提取概念、主题和人物关系',
+      description: '使用LLM智能提取概念、主题和人物关系',
       completed: currentIndex > 2,
       current: currentStage === 'ai_analysis',
       pending: currentIndex < 2,
-      progress: currentStage === 'ai_analysis' ? Math.max(0, (props.task?.progress || 0) - 20) * 1.67 : undefined
+      progress: currentStage === 'ai_analysis' ? Math.max(0, Math.min(80, props.task?.progress || 0) - 20) * 1.67 : undefined
     },
     {
-      title: '知识图谱生成',
-      description: '构建双向链接网络，生成 Obsidian 文件',
+      title: '知识网络生成',
+      description: '构建125节点双向链接网络，生成Obsidian文件',
       completed: currentIndex > 3,
-      current: currentStage === 'graph_generation',
+      current: currentStage === 'obsidian_generation',
       pending: currentIndex < 3,
-      progress: currentStage === 'graph_generation' ? Math.max(0, (props.task?.progress || 0) - 80) * 5 : undefined
+      progress: currentStage === 'obsidian_generation' ? Math.max(0, (props.task?.progress || 0) - 80) * 5 : undefined
     },
     {
       title: '完成',
-      description: '知识图谱已生成，可以查看和下载',
+      description: '智能知识图谱已生成，可以查看和下载',
       completed: currentStage === 'completed',
       current: false,
       pending: currentIndex < 4

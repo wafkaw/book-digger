@@ -228,10 +228,10 @@ const handleFile = async (file) => {
     const result = await filesStore.uploadFile(file)
     
     uploadedFile.value = {
-      id: result.fileId,
+      id: result.file_id,
       filename: result.filename,
       size: result.size,
-      contentType: result.contentType
+      contentType: result.content_type
     }
     
     uploadSuccess.value = true
@@ -273,7 +273,7 @@ const startAnalysis = async () => {
     
     // 跳转到任务详情页
     setTimeout(() => {
-      router.push(`/task/${task.taskId}`)
+      router.push(`/task/${task.task_id}`)
     }, 1000)
     
   } catch (error) {

@@ -36,42 +36,90 @@ class GraphService:
         """获取任务的图谱数据
         
         Args:
-            task_id: 任务ID
+            task_id: 任务ID（如果提供，优先使用任务特定的vault路径）
             
         Returns:
             Cytoscape格式的图谱数据
         """
         try:
+            # 确定vault路径
+            vault_path = self.vault_path
+            
+            # 如果提供了task_id，尝试使用任务特定的输出目录
+            if task_id:
+                from app.core.config import settings
+                from app.models.database import SessionLocal
+                from app.models.models import Task
+                
+                try:
+                    db = SessionLocal()
+                    task = db.query(Task).filter(Task.id == task_id).first()
+                    if task and task.output_directory:
+                        task_vault_path = Path(task.output_directory)
+                        if task_vault_path.exists():
+                            vault_path = str(task_vault_path)
+                            logger.info(f"Using task-specific vault: {vault_path}")
+                    db.close()
+                except Exception as e:
+                    logger.warning(f"Could not load task-specific vault for {task_id}: {e}")
+            
             # 解析Obsidian文件
             nodes = []
             edges = []
             
+            # 解析书籍节点（如果有）
+            books_path = Path(vault_path) / "books"
+            if books_path.exists():
+                book_nodes = self._parse_books(books_path)
+                nodes.extend(book_nodes)
+            
             # 解析概念节点
-            concepts_path = Path(self.vault_path) / "concepts"
+            concepts_path = Path(vault_path) / "concepts"
             if concepts_path.exists():
                 concept_nodes, concept_edges = self._parse_concepts(concepts_path)
                 nodes.extend(concept_nodes)
                 edges.extend(concept_edges)
                 
             # 解析主题节点
-            themes_path = Path(self.vault_path) / "themes"
+            themes_path = Path(vault_path) / "themes"
             if themes_path.exists():
                 theme_nodes, theme_edges = self._parse_themes(themes_path)
                 nodes.extend(theme_nodes)
                 edges.extend(theme_edges)
                 
             # 解析人物节点
-            people_path = Path(self.vault_path) / "people"
+            people_path = Path(vault_path) / "people"
             if people_path.exists():
                 people_nodes, people_edges = self._parse_people(people_path)
                 nodes.extend(people_nodes)
                 edges.extend(people_edges)
             
+            # 获取所有存在的节点ID
+            node_ids = set(node["data"]["id"] for node in nodes)
+            
+            # 过滤掉指向不存在节点的边
+            valid_edges = []
+            invalid_edges = []
+            for edge in edges:
+                source_id = edge["data"]["source"]
+                target_id = edge["data"]["target"]
+                if source_id in node_ids and target_id in node_ids:
+                    valid_edges.append(edge)
+                else:
+                    invalid_edges.append(edge)
+                    if source_id not in node_ids:
+                        logger.warning(f"过滤无效边: 源节点 '{source_id}' 不存在")
+                    if target_id not in node_ids:
+                        logger.warning(f"过滤无效边: 目标节点 '{target_id}' 不存在")
+            
+            if invalid_edges:
+                logger.info(f"过滤了 {len(invalid_edges)} 条无效边，保留 {len(valid_edges)} 条有效边")
+            
             # 构建Cytoscape数据格式
             cytoscape_data = {
                 "elements": {
                     "nodes": nodes,
-                    "edges": edges
+                    "edges": valid_edges
                 },
                 "layout": {
                     "name": "cose-bilkent",
@@ -92,13 +140,38 @@ class GraphService:
                 "style": self._get_graph_styles()
             }
             
-            logger.info(f"生成图谱数据: {len(nodes)} 个节点, {len(edges)} 条边")
+            logger.info(f"生成图谱数据: {len(nodes)} 个节点, {len(valid_edges)} 条边")
             
             return cytoscape_data
             
         except Exception as e:
             logger.error(f"获取图谱数据失败: {str(e)}")
             raise
+    
+    def _parse_books(self, books_path: Path) -> list:
+        """解析书籍文件"""
+        nodes = []
+        
+        for book_file in books_path.glob("*.md"):
+            try:
+                book_name = book_file.stem
+                
+                # 创建书籍节点
+                node = {
+                    "data": {
+                        "id": book_name,
+                        "label": book_name,
+                        "type": "book",
+                        "category": "书籍",
+                        "importance": 0.8
+                    }
+                }
+                nodes.append(node)
+                
+            except Exception as e:
+                logger.warning(f"解析书籍文件失败 {book_file}: {str(e)}")
+                
+        return nodes
     
     def _parse_concepts(self, concepts_path: Path) -> tuple:
         """解析概念文件"""
@@ -258,6 +331,24 @@ class GraphService:
     def _get_graph_styles(self) -> List[Dict[str, Any]]:
         """获取图谱样式配置"""
         return [
+            # 书籍节点样式
+            {
+                "selector": "node[type='book']",
+                "style": {
+                    "background-color": "#6366f1",
+                    "label": "data(label)",
+                    "color": "#ffffff",
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "font-size": "11px",
+                    "font-weight": "500",
+                    "width": "60px",
+                    "height": "35px",
+                    "border-width": "2px",
+                    "border-color": "#4f46e5",
+                    "shape": "rectangle"
+                }
+            },
             # 概念节点样式
             {
                 "selector": "node[type='concept']",

@@ -10,7 +10,20 @@
       "Bash(pip install:*)",
       "Bash(find:*)",
       "Bash(npm run dev:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(open:*)",
+      "Bash(chmod:*)",
+      "Bash(/Users/rousseauwu/devProject/book-digger/test-graph-api.sh:*)",
+      "Bash(/Users/rousseauwu/devProject/book-digger/test-api-response.sh:*)",
+      "Bash(/Users/rousseauwu/devProject/book-digger/test-graphview-apis.sh:*)",
+      "Bash(/Users/rousseauwu/devProject/book-digger/final-test.sh:*)",
+      "WebFetch(domain:jam.dev)",
+      "mcp__jam__getDetails",
+      "mcp__jam__analyzeVideo",
+      "mcp__jam__getConsoleLogs",
+      "mcp__jam__getNetworkRequests",
+      "Bash(npm run)"
     ],
     "deny": [],
     "ask": []

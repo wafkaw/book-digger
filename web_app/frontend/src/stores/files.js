@@ -46,12 +46,12 @@ export const useFilesStore = defineStore('files', {
         })
         
         // 保存文件信息
-        this.uploadedFiles.set(result.fileId, {
-          id: result.fileId,
+        this.uploadedFiles.set(result.file_id, {
+          id: result.file_id,
           filename: result.filename,
           size: result.size,
-          contentType: result.contentType,
-          uploadTimestamp: result.uploadTimestamp,
+          contentType: result.content_type,
+          uploadTimestamp: result.upload_timestamp,
           status: 'uploaded'
         })
         

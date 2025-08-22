@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 from datetime import datetime
 
-from app.models.models import Task, UploadedFile
+from app.models.models import Task
 from app.models.schemas import TaskCreate, TaskResponse, TaskResult, TaskStatus, TaskStage
-from app.tasks.analysis_tasks import analyze_kindle_file
+# from app.tasks.analysis_tasks import analyze_kindle_file  # Removed Celery dependency
 from app.services.file_service import file_service
 
 logger = logging.getLogger(__name__)
@@ -54,25 +54,36 @@ class TaskService:
         db.commit()
         db.refresh(db_task)
         
-        # Start Celery task
+        # Start analysis directly (no Celery)
         try:
-            celery_task = analyze_kindle_file.delay(
-                task_id=task_id,
-                file_path=str(file_path),
-                config=task_data.config
-            )
+            from app.services.sync_analysis_service import analysis_service
+            import asyncio
             
-            # Update task with Celery ID
-            db_task.celery_task_id = celery_task.id
-            db.commit()
+            # Run analysis in background task
+            async def run_in_background():
+                try:
+                    # Create a new database session for the background task
+                    from app.models.database import SessionLocal
+                    bg_db = SessionLocal()
+                    try:
+                        await analysis_service.run_analysis(
+                            task_id, str(file_path), bg_db, task_data.config or {}
+                        )
+                    finally:
+                        bg_db.close()
+                except Exception as e:
+                    logger.error(f"Background analysis failed: {e}")
             
-            logger.info(f"Task created: {task_id} (Celery: {celery_task.id})")
+            # Start background task
+            asyncio.create_task(run_in_background())
+            
+            logger.info(f"Task created and started: {task_id}")
             
         except Exception as e:
-            # Clean up if Celery task creation fails
+            # Clean up if task creation fails
             db.delete(db_task)
             db.commit()
-            logger.error(f"Failed to start Celery task: {e}")
+            logger.error(f"Failed to start analysis task: {e}")
             raise ValueError(f"Failed to start analysis task: {str(e)}")
         
         return TaskResponse(
@@ -164,13 +175,8 @@ class TaskService:
         if db_task.status in ["success", "failure", "cancelled"]:
             return True  # Already finished
         
-        # Cancel Celery task if exists
-        if db_task.celery_task_id:
-            try:
-                from app.tasks.celery_app import celery_app
-                celery_app.control.revoke(db_task.celery_task_id, terminate=True)
-            except Exception as e:
-                logger.warning(f"Failed to cancel Celery task {db_task.celery_task_id}: {e}")
+        # Note: In sync mode, tasks cannot be cancelled once started
+        # This is a limitation of the simplified architecture
         
         # Update task status
         db_task.status = "cancelled"

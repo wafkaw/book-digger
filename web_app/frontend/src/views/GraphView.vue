@@ -173,6 +173,15 @@ const taskId = computed(() => route.params.id)
 
 // 生命周期
 onMounted(async () => {
+  console.log('GraphView mounted, route params:', route.params)
+  console.log('taskId computed value:', taskId.value)
+  
+  if (!taskId.value) {
+    error.value = '任务ID不能为空'
+    isLoading.value = false
+    return
+  }
+  
   // 检查任务是否存在
   await validateTask()
 })
@@ -183,19 +192,28 @@ const validateTask = async () => {
   error.value = null
   
   try {
+    console.log('开始验证任务，taskId:', taskId.value)
+    
     // 验证任务存在且已完成
     const response = await ApiService.get(`/tasks/${taskId.value}`)
-    const task = response.data.data
+    console.log('任务API响应:', response)
     
-    if (task.status !== 'success') {
-      throw new Error('任务尚未完成或失败，无法查看知识图谱')
+    if (!response) {
+      throw new Error('任务响应为空')
     }
+    
+    if (response.status !== 'success') {
+      throw new Error(`任务尚未完成或失败，状态: ${response.status}`)
+    }
+    
+    console.log('任务验证成功')
     
     // 任务验证成功
     isLoading.value = false
     
   } catch (err) {
     console.error('验证任务失败:', err)
+    console.error('错误详情:', err.response)
     error.value = err.response?.data?.detail || err.message || '任务验证失败'
     isLoading.value = false
   }

@@ -9,8 +9,8 @@ export const useTasksStore = defineStore('tasks', {
     // 任务列表
     tasks: new Map(),
     
-    // 活跃的WebSocket连接
-    activeConnections: new Map(),
+    // 活跃的轮询任务
+    activePolling: new Map(),
     
     // 当前任务状态
     currentTask: null,
@@ -63,22 +63,22 @@ export const useTasksStore = defineStore('tasks', {
         const task = await ApiService.createTask(fileId, config)
         
         // 保存任务信息
-        this.tasks.set(task.taskId, {
-          id: task.taskId,
-          fileId: task.fileId,
+        this.tasks.set(task.task_id, {
+          id: task.task_id,
+          fileId: task.file_id,
           status: task.status,
           stage: task.stage,
           progress: task.progress,
-          createdAt: task.createdAt,
-          updatedAt: task.updatedAt,
-          errorMessage: task.errorMessage,
-          estimatedRemaining: task.estimatedRemaining
+          createdAt: task.created_at,
+          updatedAt: task.updated_at,
+          errorMessage: task.error_message,
+          estimatedRemaining: task.estimated_remaining
         })
         
-        this.currentTask = task.taskId
+        this.currentTask = task.task_id
         
         // 自动开始监听任务进度
-        this.startTaskMonitoring(task.taskId)
+        this.startTaskMonitoring(task.task_id)
         
         return task
         
@@ -98,15 +98,15 @@ export const useTasksStore = defineStore('tasks', {
         const task = await ApiService.getTask(taskId)
         
         this.tasks.set(taskId, {
-          id: task.taskId,
-          fileId: task.fileId,
+          id: task.task_id,
+          fileId: task.file_id,
           status: task.status,
           stage: task.stage,
           progress: task.progress,
-          createdAt: task.createdAt,
-          updatedAt: task.updatedAt,
-          errorMessage: task.errorMessage,
-          estimatedRemaining: task.estimatedRemaining
+          createdAt: task.created_at,
+          updatedAt: task.updated_at,
+          errorMessage: task.error_message,
+          estimatedRemaining: task.estimated_remaining
         })
         
         return task
@@ -201,50 +201,48 @@ export const useTasksStore = defineStore('tasks', {
     },
 
     /**
-     * 开始监听任务进度 (WebSocket)
+     * 开始监听任务进度 (轮询模式)
      */
     startTaskMonitoring(taskId) {
-      // 如果已经有连接，先关闭
-      if (this.activeConnections.has(taskId)) {
+      // 如果已经有轮询，先停止
+      if (this.activePolling.has(taskId)) {
         this.stopTaskMonitoring(taskId)
       }
       
-      try {
-        const ws = ApiService.createTaskWebSocket(taskId)
-        
-        ws.onopen = () => {
-          console.log(`WebSocket connected for task ${taskId}`)
+      console.log(`开始轮询任务进度: ${taskId}`)
+      
+      // 立即获取一次状态
+      this.fetchTask(taskId)
+      
+      // 设置轮询
+      const pollInterval = setInterval(async () => {
+        try {
+          const task = await this.fetchTask(taskId)
+          
+          // 如果任务已完成，停止轮询
+          if (['success', 'failure', 'cancelled'].includes(task.status)) {
+            console.log(`任务 ${taskId} 已完成，停止轮询`)
+            this.stopTaskMonitoring(taskId)
+          }
+          
+        } catch (error) {
+          console.error(`轮询任务状态失败 ${taskId}:`, error)
+          // 继续轮询，不停止
         }
-        
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data)
-          this.handleTaskUpdate(taskId, data)
-        }
-        
-        ws.onerror = (error) => {
-          console.error(`WebSocket error for task ${taskId}:`, error)
-        }
-        
-        ws.onclose = () => {
-          console.log(`WebSocket closed for task ${taskId}`)
-          this.activeConnections.delete(taskId)
-        }
-        
-        this.activeConnections.set(taskId, ws)
-        
-      } catch (error) {
-        console.error(`Failed to create WebSocket for task ${taskId}:`, error)
-      }
+      }, 2000) // 每2秒轮询一次
+      
+      this.activePolling.set(taskId, pollInterval)
     },
 
     /**
      * 停止监听任务进度
      */
     stopTaskMonitoring(taskId) {
-      const ws = this.activeConnections.get(taskId)
-      if (ws) {
-        ws.close()
-        this.activeConnections.delete(taskId)
+      const pollInterval = this.activePolling.get(taskId)
+      if (pollInterval) {
+        clearInterval(pollInterval)
+        this.activePolling.delete(taskId)
+        console.log(`停止轮询任务: ${taskId}`)
       }
     },
 
@@ -282,13 +280,13 @@ export const useTasksStore = defineStore('tasks', {
     },
 
     /**
-     * 清理所有WebSocket连接
+     * 清理所有轮询任务
      */
     cleanup() {
-      this.activeConnections.forEach((ws, taskId) => {
-        ws.close()
+      this.activePolling.forEach((interval, taskId) => {
+        clearInterval(interval)
       })
-      this.activeConnections.clear()
+      this.activePolling.clear()
     }
   }
 })

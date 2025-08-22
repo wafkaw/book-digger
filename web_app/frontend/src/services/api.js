@@ -97,7 +97,7 @@ export class ApiService {
   // 任务管理
   static async createTask(fileId, config = {}) {
     return api.post('/tasks', {
-      fileId: fileId,
+      file_id: fileId,
       config
     })
   }
@@ -116,6 +116,34 @@ export class ApiService {
 
   static async listTasks(limit = 50, offset = 0) {
     return api.get(`/tasks?limit=${limit}&offset=${offset}`)
+  }
+
+  // 图谱相关API
+  static async getGraphData(taskId) {
+    return api.get(`/graph/tasks/${taskId}/graph`)
+  }
+
+  static async searchGraphNodes(query, nodeType = null) {
+    const params = { q: query }
+    if (nodeType) {
+      params.type = nodeType
+    }
+    return api.get('/graph/search', { params })
+  }
+
+  static async getNodeNeighbors(nodeId) {
+    return api.get(`/graph/nodes/${nodeId}/neighbors`)
+  }
+
+  static async getGraphStats() {
+    return api.get('/graph/stats')
+  }
+
+  static async exportGraph(taskId, format = 'json') {
+    return api.get(`/graph/export/${taskId}`, { 
+      params: { format },
+      responseType: 'blob' 
+    })
   }
 
   // WebSocket连接管理
