@@ -1,0 +1,37 @@
+# FastAPI Web Application Dependencies
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+websockets==12.0
+
+# Async Task Queue
+celery==5.3.4
+redis==5.0.1
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.12.1
+# sqlite3  # Built-in, don't install separately
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+
+# File Handling
+aiofiles==23.2.1
+python-magic==0.4.27
+
+# HTTP Client
+httpx==0.25.2
+
+# Existing project dependencies (inherit from main project)
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+openai>=1.3.0
+tiktoken>=0.5.0
+networkx>=3.2.0
+numpy>=1.24.0
+scikit-learn>=1.3.0

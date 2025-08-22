@@ -67,3 +67,57 @@ material/*.processed
 # Backup files
 *.bak
 *.backup
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Frontend build outputs
+dist/
+dist-ssr/
+*.local
+
+# Frontend IDE and editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Web app backend
+web_app/backend/uploads/
+web_app/backend/app.db
+web_app/backend/*.db
+web_app/backend/storage/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Redis dump files
+dump.rdb
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Generated output directories
+obsidian_vault_llm/
+outputs/
+results/
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Runtime data
+data/cache/
+processing_summary.json
