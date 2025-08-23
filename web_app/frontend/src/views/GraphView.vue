@@ -40,16 +40,54 @@
           </div>
           
           <div class="mt-4 md:mt-0 flex gap-3">
-            <button
-              @click="exportGraph"
-              :disabled="isExporting"
-              class="btn-secondary"
-            >
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12" />
-              </svg>
-              {{ isExporting ? '导出中...' : '导出图谱' }}
-            </button>
+            <!-- 导出下拉菜单 -->
+            <div class="relative" ref="exportDropdown">
+              <button
+                @click="toggleExportMenu"
+                :disabled="isExporting"
+                class="btn-secondary flex items-center"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12" />
+                </svg>
+                {{ isExporting ? '导出中...' : '导出图谱' }}
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              <!-- 下拉菜单 -->
+              <div 
+                v-show="showExportMenu"
+                class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10"
+              >
+                <button
+                  @click="exportGraph('json')"
+                  class="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center"
+                >
+                  <svg class="w-4 h-4 mr-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div>
+                    <div class="font-medium">JSON 图谱数据</div>
+                    <div class="text-sm text-gray-500">网状结构数据，用于程序分析</div>
+                  </div>
+                </button>
+                
+                <button
+                  @click="exportGraph('obsidian')"
+                  class="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center"
+                >
+                  <svg class="w-4 h-4 mr-3 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <div>
+                    <div class="font-medium">Obsidian 知识库</div>
+                    <div class="text-sm text-gray-500">双向链接笔记，导入到Obsidian使用</div>
+                  </div>
+                </button>
+              </div>
+            </div>
             
             <router-link 
               :to="`/task/${taskId}`"
@@ -152,10 +190,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import GraphViewComponent from '@/components/GraphView.vue'
-import ApiService from '@/services/api.js'
+import { ApiService } from '@/services/api.js'
 import { useAppStore } from '@/stores/app'
 
 // 路由和状态
@@ -167,6 +205,8 @@ const isLoading = ref(true)
 const error = ref(null)
 const isExporting = ref(false)
 const showGuide = ref(true)
+const showExportMenu = ref(false)
+const exportDropdown = ref(null)
 
 // 计算属性
 const taskId = computed(() => route.params.id)
@@ -184,7 +224,20 @@ onMounted(async () => {
   
   // 检查任务是否存在
   await validateTask()
+  
+  // 添加点击外部区域关闭下拉菜单
+  document.addEventListener('click', handleClickOutside)
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
+const handleClickOutside = (event) => {
+  if (exportDropdown.value && !exportDropdown.value.contains(event.target)) {
+    showExportMenu.value = false
+  }
+}
 
 // 方法
 const validateTask = async () => {
@@ -195,7 +248,7 @@ const validateTask = async () => {
     console.log('开始验证任务，taskId:', taskId.value)
     
     // 验证任务存在且已完成
-    const response = await ApiService.get(`/tasks/${taskId.value}`)
+    const response = await ApiService.getTask(taskId.value)
     console.log('任务API响应:', response)
     
     if (!response) {
@@ -227,36 +280,71 @@ const handleExportRequest = () => {
   exportGraph()
 }
 
-const exportGraph = async () => {
+const toggleExportMenu = () => {
+  showExportMenu.value = !showExportMenu.value
+}
+
+const exportGraph = async (format = 'json') => {
   if (isExporting.value) return
   
   isExporting.value = true
+  showExportMenu.value = false  // 关闭下拉菜单
   
   try {
-    const response = await ApiService.get(
-      `/graph/export/${taskId.value}`,
-      { params: { format: 'json' } }
-    )
-    
-    // 创建下载链接
-    const data = JSON.stringify(response.data.data.graphData, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url = window.URL.createObjectURL(blob)
-    
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `knowledge-graph-${taskId.value}.json`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    
-    window.URL.revokeObjectURL(url)
-    
-    appStore.showNotification({
-      type: 'success',
-      title: '导出成功',
-      message: '知识图谱数据已下载'
-    })
+    if (format === 'obsidian') {
+      // 对于 Obsidian 格式，直接下载文件
+      const response = await fetch(`/api/v1/graph/export/${taskId.value}?format=obsidian`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `obsidian_vault_${taskId.value}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      window.URL.revokeObjectURL(url)
+      
+      appStore.showNotification({
+        type: 'success',
+        title: '导出成功',
+        message: 'Obsidian 知识库已下载，解压后导入到Obsidian中使用'
+      })
+      
+    } else {
+      // JSON 格式导出
+      const response = await ApiService.exportGraph(taskId.value, format)
+      
+      // API拦截器已经提取了data字段，response现在是导出数据对象
+      const graphData = response.graphData
+      const originalFilename = response.originalFilename || `knowledge-graph-${taskId.value}`
+      
+      // 创建下载链接
+      const data = JSON.stringify(graphData, null, 2)
+      const blob = new Blob([data], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${originalFilename}_脑图.${format}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      window.URL.revokeObjectURL(url)
+      
+      appStore.showNotification({
+        type: 'success',
+        title: '导出成功',
+        message: '知识图谱数据已下载'
+      })
+    }
     
   } catch (err) {
     console.error('导出失败:', err)

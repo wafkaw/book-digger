@@ -31,6 +31,31 @@ class GraphService:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.join(current_dir, "..", "..", "..", "..")
             self.vault_path = os.path.join(project_root, "obsidian_vault")
+    
+    def _get_task_vault_path(self, task_id: str) -> str:
+        """获取任务特定的 vault 路径"""
+        # 默认使用基础 vault 路径
+        vault_path = self.vault_path
+        
+        # 如果提供了task_id，尝试使用任务特定的输出目录
+        if task_id:
+            try:
+                from app.core.config import settings
+                from app.models.database import SessionLocal
+                from app.models.models import Task
+                
+                db = SessionLocal()
+                task = db.query(Task).filter(Task.id == task_id).first()
+                if task and task.output_directory:
+                    task_vault_path = Path(task.output_directory)
+                    if task_vault_path.exists():
+                        vault_path = str(task_vault_path)
+                        logger.info(f"Using task-specific vault: {vault_path}")
+                db.close()
+            except Exception as e:
+                logger.warning(f"Could not load task-specific vault for {task_id}: {e}")
+        
+        return vault_path
         
     def get_graph_data(self, task_id: str) -> Dict[str, Any]:
         """获取任务的图谱数据

@@ -23,7 +23,9 @@
       "mcp__jam__analyzeVideo",
       "mcp__jam__getConsoleLogs",
       "mcp__jam__getNetworkRequests",
-      "Bash(npm run)"
+      "Bash(npm run)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
     ],
     "deny": [],
     "ask": []

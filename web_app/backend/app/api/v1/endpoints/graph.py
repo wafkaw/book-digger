@@ -3,9 +3,13 @@
 提供知识图谱可视化相关的API接口
 """
 
+import os
+import zipfile
+import tempfile
+from urllib.parse import quote
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from app.services.graph_service import GraphService
 from app.models.schemas import ApiResponse
@@ -168,36 +172,47 @@ async def get_graph_stats() -> JSONResponse:
 @router.get("/export/{task_id}", summary="导出图谱数据")
 async def export_graph_data(
     task_id: str,
-    format: str = Query("json", description="导出格式 (json/graphml/gexf)")
+    format: str = Query("json", description="导出格式 (json/graphml/gexf/obsidian)")
 ) -> JSONResponse:
     """导出图谱数据为指定格式"""
     try:
-        if format not in ["json", "graphml", "gexf"]:
+        if format not in ["json", "graphml", "gexf", "obsidian"]:
             raise HTTPException(
                 status_code=400,
-                detail="不支持的导出格式，支持的格式: json, graphml, gexf"
+                detail="不支持的导出格式，支持的格式: json, graphml, gexf, obsidian"
             )
         
         # 获取图谱数据
         graph_data = graph_service.get_graph_data(task_id)
         
-        # 目前先返回JSON格式，后续可以扩展其他格式
-        return JSONResponse(
-            status_code=200,
-            content={
-                "success": True,
-                "message": f"导出图谱数据成功 (格式: {format})",
-                "data": {
-                    "format": format,
-                    "taskId": task_id,
-                    "graphData": graph_data,
-                    "exportTime": "2025-08-21T10:00:00Z"
+        if format == "obsidian":
+            # 生成 Obsidian vault ZIP文件
+            return await _export_obsidian_vault(task_id, graph_service)
+        else:
+            # 获取原始文件名用于JSON导出
+            original_filename = _get_original_filename(task_id)
+            json_filename = f"{original_filename}_脑图.{format}"
+            # URL编码中文文件名
+            encoded_json_filename = quote(json_filename.encode('utf-8'))
+            
+            # 返回JSON格式或其他格式
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": f"导出图谱数据成功 (格式: {format})",
+                    "data": {
+                        "format": format,
+                        "taskId": task_id,
+                        "originalFilename": original_filename,
+                        "graphData": graph_data,
+                        "exportTime": "2025-08-21T10:00:00Z"
+                    }
+                },
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_json_filename}"
                 }
-            },
-            headers={
-                "Content-Disposition": f"attachment; filename=graph_{task_id}.{format}"
-            }
-        )
+            )
         
     except HTTPException:
         raise
@@ -207,3 +222,97 @@ async def export_graph_data(
             status_code=500,
             detail=f"导出失败: {str(e)}"
         )
+
+
+async def _export_obsidian_vault(task_id: str, graph_service: GraphService) -> FileResponse:
+    """生成并导出 Obsidian vault ZIP文件"""
+    try:
+        # 获取任务对应的 Obsidian vault 路径
+        vault_path = graph_service._get_task_vault_path(task_id)
+        
+        if not os.path.exists(vault_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"任务 {task_id} 的 Obsidian vault 不存在"
+            )
+        
+        # 获取原始文件名
+        original_filename = _get_original_filename(task_id)
+        
+        # 创建临时ZIP文件
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+        temp_file.close()
+        
+        try:
+            # 创建ZIP压缩包
+            with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 遍历vault目录中的所有文件
+                for root, dirs, files in os.walk(vault_path):
+                    for file in files:
+                        if file.endswith('.md'):  # 只包含markdown文件
+                            file_path = os.path.join(root, file)
+                            # 计算相对路径
+                            arcname = os.path.relpath(file_path, vault_path)
+                            zipf.write(file_path, arcname)
+            
+            logger.info(f"成功创建 Obsidian vault ZIP文件: {temp_file.name}")
+            
+            # 生成文件名
+            filename = f"{original_filename}_脑图.zip"
+            # URL编码中文文件名
+            encoded_filename = quote(filename.encode('utf-8'))
+            
+            # 返回文件响应
+            return FileResponse(
+                path=temp_file.name,
+                filename=filename,
+                media_type="application/zip",
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+                }
+            )
+            
+        except Exception as e:
+            # 清理临时文件
+            if os.path.exists(temp_file.name):
+                os.unlink(temp_file.name)
+            raise e
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"生成 Obsidian vault 失败: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"生成 Obsidian vault 失败: {str(e)}"
+        )
+
+
+def _get_original_filename(task_id: str) -> str:
+    """获取任务关联的原始文件名（去掉扩展名）"""
+    try:
+        from app.models.database import SessionLocal
+        from app.models.models import Task, UploadedFile
+        
+        db = SessionLocal()
+        
+        # 查询任务和关联的文件信息
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if task and task.file:
+            original_filename = task.file.original_filename
+            # 去掉文件扩展名
+            if '.' in original_filename:
+                filename_without_ext = '.'.join(original_filename.split('.')[:-1])
+            else:
+                filename_without_ext = original_filename
+            
+            db.close()
+            return filename_without_ext
+        
+        db.close()
+        logger.warning(f"无法找到任务 {task_id} 的原始文件名，使用默认名称")
+        return f"knowledge_graph_{task_id}"
+        
+    except Exception as e:
+        logger.error(f"获取原始文件名失败: {str(e)}")
+        return f"knowledge_graph_{task_id}"

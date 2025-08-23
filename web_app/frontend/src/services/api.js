@@ -141,8 +141,7 @@ export class ApiService {
 
   static async exportGraph(taskId, format = 'json') {
     return api.get(`/graph/export/${taskId}`, { 
-      params: { format },
-      responseType: 'blob' 
+      params: { format }
     })
   }
 
