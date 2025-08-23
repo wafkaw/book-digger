@@ -292,62 +292,78 @@ strength = (total_importance / frequency) * log(frequency + 1)
 - **布雷尔** → 连接真正的敌人、生命旅伴、永恒重复等6个概念
 - **弗洛伊德** → 链接权力介入、亲近障碍、情感控制等概念
 
-### 文件组织结构 📁 **全栈架构 + 网络化知识库**
+### 文件组织结构 📁 **重组后的清晰架构** ✨
 
 ```
 book-digger/
-├── src/                        # CLI核心源代码 ⭐
-│   ├── config/                 # 配置和数据模型
-│   ├── data_collection/        # 数据采集
-│   ├── knowledge_graph/        # 知识图谱 ⭐ AI分析核心
-│   ├── llm/                    # LLM服务 ✅ 多提供商支持
-│   ├── output/                 # 输出模块 ⭐ 双向链接网络生成器
-│   └── utils/                  # 工具函数
-├── web_app/                    # 🌐 Web应用全栈架构 ✅ **新增**
-│   ├── backend/                # FastAPI后端服务
+├── cli/                        # 🖥️ CLI应用（独立项目）
+│   ├── src/                   # CLI核心源代码
+│   │   ├── config/           # 配置和数据模型
+│   │   ├── data_collection/  # 数据采集
+│   │   ├── knowledge_graph/  # 知识图谱 ⭐ AI分析核心
+│   │   ├── llm/              # LLM服务 ✅ 多提供商支持
+│   │   ├── output/           # 输出模块 ⭐ 双向链接网络生成器
+│   │   └── utils/            # 工具函数
+│   ├── tests/                # CLI测试套件
+│   ├── main.py               # CLI入口点
+│   ├── requirements.txt      # CLI依赖
+│   ├── .env.example          # CLI环境变量模板
+│   └── README.md             # CLI使用文档
+├── web/                        # 🌐 Web应用（独立项目）
+│   ├── backend/              # FastAPI后端服务
 │   │   ├── app/
-│   │   │   ├── api/           # RESTful API端点
-│   │   │   ├── core/          # 核心配置
-│   │   │   ├── models/        # 数据库模型
-│   │   │   ├── services/      # 业务逻辑服务
-│   │   │   └── tasks/         # Celery异步任务
-│   │   ├── Dockerfile         # 后端容器化
-│   │   └── requirements.txt   # 后端依赖
-│   ├── frontend/              # Vue 3前端应用
+│   │   │   ├── api/         # RESTful API端点
+│   │   │   ├── core/        # 核心配置
+│   │   │   ├── models/      # 数据库模型
+│   │   │   ├── services/    # 业务逻辑服务
+│   │   │   └── tasks/       # Celery异步任务
+│   │   ├── uploads/         # 用户上传文件（运行时）
+│   │   ├── Dockerfile       # 后端容器化
+│   │   └── requirements.txt # 后端依赖
+│   ├── frontend/            # Vue 3前端应用
 │   │   ├── src/
-│   │   │   ├── components/    # Vue组件库
-│   │   │   ├── views/         # 页面视图
-│   │   │   ├── services/      # API服务
-│   │   │   └── stores/        # 状态管理
-│   │   ├── package.json       # 前端依赖
-│   │   └── vite.config.js     # 构建配置
-│   ├── docker-compose.yml     # 完整服务编排
-│   └── .env.example           # Web应用环境变量
-├── data/                       # 数据和缓存系统 ✅
-│   └── cache/                  # 智能缓存 (200+ 缓存文件)
-├── material/                   # Kindle 导出文件
-├── obsidian_vault/             # 🌐 智能知识网络 (CLI输出)
-│   ├── books/                  # 📖 书籍分析
-│   ├── concepts/               # 🧠 概念网络 (独立互联节点)
-│   ├── themes/                 # 🎭 主题桥梁 (跨概念连接)
-│   ├── people/                 # 👥 思想源泉 (人物关系)
-│   └── index.md                # 🎯 智能导航中心
-├── tests/                      # 测试套件 ✅
-│   ├── test_ai_analysis.py     # AI分析功能测试
-│   ├── test_llm_connectivity.py# LLM连通性测试
-│   └── test_kindle_assistant.py# 主程序集成测试
-├── logs/                       # 详细日志系统
-├── main.py                     # CLI主程序 ✅ 性能优化版
-├── .env.example                # CLI环境变量配置模板
-├── requirements.txt            # CLI依赖包
-└── CLAUDE.md                   # 📋 项目文档（本文件）
+│   │   │   ├── components/  # Vue组件库
+│   │   │   ├── views/       # 页面视图
+│   │   │   ├── services/    # API服务
+│   │   │   └── stores/      # 状态管理
+│   │   ├── package.json     # 前端依赖
+│   │   └── vite.config.js   # 构建配置
+│   ├── docker-compose.yml   # 完整服务编排
+│   ├── .env.example         # Web应用环境变量
+│   └── README.md            # Web应用文档
+├── shared/                     # 🤝 共享资源
+│   ├── data/                 # 缓存和临时数据
+│   │   ├── cache/           # 智能缓存 (200+ 缓存文件)
+│   │   └── logs/            # 运行日志
+│   ├── inputs/              # Kindle HTML导出文件
+│   └── outputs/             # 生成的Obsidian知识库
+│       ├── books/           # 📖 书籍分析结果
+│       ├── concepts/        # 🧠 概念网络 (独立互联节点)
+│       ├── themes/          # 🎭 主题桥梁 (跨概念连接)
+│       ├── people/          # 👥 思想源泉 (人物关系)
+│       └── index.md         # 🎯 智能导航中心
+├── docs/                       # 📚 项目文档
+│   ├── api/                 # API文档
+│   ├── guides/              # 使用指南
+│   └── plan/                # 开发计划文档
+├── scripts/                    # 🔧 开发和运维脚本
+│   ├── dev/                 # 开发辅助脚本
+│   ├── test/                # 测试脚本和HTML文件
+│   └── deploy/              # 部署脚本
+├── .gitignore              # Git忽略规则
+├── .env                    # 环境变量（本地）
+├── .env.example            # 环境变量模板
+├── CLAUDE.md            # 完整项目文档（本文件）
+├── README.md               # 项目总览文档
+└── venv/                   # Python虚拟环境
 ```
 
-**🌟 双架构特色**：
-- **CLI版本**: 本地高性能处理，开发者友好
-- **Web版本**: 多用户并发，普通用户友好
-- **共享核心**: 两版本共用相同的AI分析引擎
-- **数据互通**: Web版输出兼容Obsidian本地版本
+**🌟 重组优势**：
+- **📁 清晰分离**: CLI和Web作为独立子项目，各自完整
+- **🤝 共享资源**: inputs、outputs、data集中管理，避免重复
+- **📚 文档集中**: 所有文档统一在docs目录
+- **🔧 脚本整理**: 开发、测试、部署脚本分类存放
+- **🚀 部署友好**: 每个子项目可独立部署和维护
 
 **🌟 网络特色**：
 - **125个独立文件** = 125个可链接节点

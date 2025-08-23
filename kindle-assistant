@@ -1,0 +1,848 @@
+#!/usr/bin/env python3
+"""
+Kindle Reading Assistant - Unified CLI Management Tool
+A comprehensive command-line interface for managing both CLI and Web services.
+"""
+
+import os
+import sys
+import argparse
+import subprocess
+import json
+import time
+import signal
+from pathlib import Path
+from datetime import datetime
+
+# 添加项目路径
+PROJECT_ROOT = Path(__file__).parent.absolute()
+CLI_ROOT = PROJECT_ROOT / "cli"
+WEB_ROOT = PROJECT_ROOT / "web"
+SHARED_ROOT = PROJECT_ROOT / "shared"
+
+# 添加CLI源码路径到Python路径
+sys.path.insert(0, str(CLI_ROOT))
+
+class Colors:
+    """终端颜色代码"""
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+class KindleAssistantCLI:
+    def __init__(self):
+        self.project_root = PROJECT_ROOT
+        self.cli_root = CLI_ROOT
+        self.web_root = WEB_ROOT
+        self.shared_root = SHARED_ROOT
+        
+        # 确保必要目录存在
+        self._ensure_directories()
+    
+    def _ensure_directories(self):
+        """确保必要的目录存在"""
+        dirs_to_create = [
+            self.shared_root / "inputs",
+            self.shared_root / "outputs", 
+            self.shared_root / "data" / "cache",
+            self.shared_root / "data" / "logs",
+            self.web_root / "backend" / "uploads"
+        ]
+        
+        for dir_path in dirs_to_create:
+            dir_path.mkdir(parents=True, exist_ok=True)
+    
+    def _print_header(self, title):
+        """打印标题"""
+        print(f"\n{Colors.HEADER}{Colors.BOLD}🚀 {title}{Colors.ENDC}")
+        print(f"{Colors.HEADER}{'='*50}{Colors.ENDC}\n")
+    
+    def _print_success(self, message):
+        """打印成功信息"""
+        print(f"{Colors.GREEN}✅ {message}{Colors.ENDC}")
+    
+    def _print_warning(self, message):
+        """打印警告信息"""
+        print(f"{Colors.WARNING}⚠️  {message}{Colors.ENDC}")
+    
+    def _print_error(self, message):
+        """打印错误信息"""
+        print(f"{Colors.FAIL}❌ {message}{Colors.ENDC}")
+    
+    def _print_info(self, message):
+        """打印信息"""
+        print(f"{Colors.CYAN}ℹ️  {message}{Colors.ENDC}")
+    
+    def _run_command(self, command, cwd=None, capture_output=False):
+        """运行命令"""
+        try:
+            if cwd:
+                os.chdir(cwd)
+            
+            if capture_output:
+                result = subprocess.run(command, shell=True, capture_output=True, text=True)
+                return result.returncode == 0, result.stdout, result.stderr
+            else:
+                result = subprocess.run(command, shell=True)
+                return result.returncode == 0, "", ""
+        except Exception as e:
+            return False, "", str(e)
+    
+    def _is_web_running(self):
+        """检查Web服务是否运行"""
+        try:
+            result = subprocess.run(
+                "docker-compose ps -q", 
+                shell=True, 
+                cwd=self.web_root,
+                capture_output=True, 
+                text=True
+            )
+            return len(result.stdout.strip()) > 0
+        except:
+            return False
+    
+    def _get_web_status(self):
+        """获取Web服务状态"""
+        try:
+            result = subprocess.run(
+                "docker-compose ps", 
+                shell=True, 
+                cwd=self.web_root,
+                capture_output=True, 
+                text=True
+            )
+            return result.stdout
+        except:
+            return "❌ Unable to get status"
+
+    # ============ 服务管理命令 ============
+    
+    def start_web(self):
+        """启动Web服务"""
+        self._print_header("Starting Web Services")
+        
+        if self._is_web_running():
+            self._print_warning("Web services are already running")
+            return
+        
+        self._print_info("Starting Docker Compose services...")
+        success, stdout, stderr = self._run_command(
+            "docker-compose up -d", 
+            cwd=self.web_root
+        )
+        
+        if success:
+            self._print_success("Web services started successfully!")
+            self._print_info("Frontend: http://localhost:3000")
+            self._print_info("Backend API: http://localhost:8000")
+            self._print_info("API Docs: http://localhost:8000/docs")
+            self._print_info("Celery Monitor: http://localhost:5555")
+        else:
+            self._print_error("Failed to start web services")
+            if stderr:
+                print(stderr)
+    
+    def stop_web(self):
+        """停止Web服务"""
+        self._print_header("Stopping Web Services")
+        
+        if not self._is_web_running():
+            self._print_warning("Web services are not running")
+            return
+        
+        self._print_info("Stopping Docker Compose services...")
+        success, stdout, stderr = self._run_command(
+            "docker-compose down", 
+            cwd=self.web_root
+        )
+        
+        if success:
+            self._print_success("Web services stopped successfully!")
+        else:
+            self._print_error("Failed to stop web services")
+            if stderr:
+                print(stderr)
+    
+    def restart_web(self):
+        """重启Web服务"""
+        self._print_header("Restarting Web Services")
+        self.stop_web()
+        time.sleep(2)
+        self.start_web()
+    
+    def status(self):
+        """显示系统状态"""
+        self._print_header("System Status")
+        
+        # Web服务状态
+        print(f"{Colors.BOLD}🌐 Web Services:{Colors.ENDC}")
+        if self._is_web_running():
+            self._print_success("Running")
+            print(self._get_web_status())
+        else:
+            self._print_warning("Stopped")
+        
+        # 目录状态
+        print(f"\n{Colors.BOLD}📁 Directories:{Colors.ENDC}")
+        dirs_to_check = {
+            "CLI Source": self.cli_root / "src",
+            "Web Backend": self.web_root / "backend",
+            "Web Frontend": self.web_root / "frontend",
+            "Shared Inputs": self.shared_root / "inputs",
+            "Shared Outputs": self.shared_root / "outputs",
+            "Cache": self.shared_root / "data" / "cache"
+        }
+        
+        for name, path in dirs_to_check.items():
+            if path.exists():
+                self._print_success(f"{name}: {path}")
+            else:
+                self._print_error(f"{name}: {path} (Missing)")
+        
+        # 输入文件
+        input_files = list((self.shared_root / "inputs").glob("*.html"))
+        print(f"\n{Colors.BOLD}📄 Input Files:{Colors.ENDC}")
+        if input_files:
+            for file in input_files[:5]:  # 显示前5个
+                print(f"  • {file.name}")
+            if len(input_files) > 5:
+                print(f"  ... and {len(input_files) - 5} more")
+        else:
+            self._print_warning("No Kindle HTML files found in shared/inputs/")
+
+    # ============ 分析处理命令 ============
+    
+    def analyze(self, file_path=None, debug=False, output_format='obsidian', output_path=None,
+                llm_key=None, llm_base_url=None, llm_model=None):
+        """运行分析处理"""
+        self._print_header("Running Analysis")
+        
+        # 检查CLI环境
+        if not (self.cli_root / "requirements.txt").exists():
+            self._print_error("CLI environment not found. Run 'init' first.")
+            return
+        
+        try:
+            # 加载配置
+            sys.path.insert(0, str(self.cli_root))
+            from src.config.config_manager import config_manager
+            
+            config = config_manager.load_config()
+            
+            # 应用命令行参数（最高优先级）
+            config = config_manager.apply_cli_args(
+                config,
+                llm_key=llm_key,
+                llm_base_url=llm_base_url,
+                llm_model=llm_model,
+                debug=debug,
+                format=output_format,
+                output=output_path
+            )
+            
+            # 显示配置信息
+            self._print_info(f"LLM Provider: {config.llm.provider} ({config.llm.model})")
+            if config.llm.api_key:
+                self._print_info(f"API Key: {config.llm.api_key[:8]}...")
+            else:
+                self._print_warning("No API key configured!")
+                
+            # 设置环境变量
+            env = os.environ.copy()
+            env['OPENAI_API_KEY'] = config.llm.api_key
+            env['OPENAI_BASE_URL'] = config.llm.base_url
+            env['OPENAI_MODEL'] = config.llm.model
+            env['AI_BATCH_SIZE'] = str(config.processing.batch_size)
+            env['ENABLE_CACHING'] = str(config.processing.enable_caching).lower()
+            env['DEBUG_MODE'] = str(config.processing.debug_mode).lower()
+            
+            # 处理输入文件路径
+            if file_path:
+                # 支持相对路径和绝对路径
+                if not os.path.isabs(file_path):
+                    # 首先尝试相对于当前目录
+                    if os.path.exists(file_path):
+                        file_path = os.path.abspath(file_path)
+                    else:
+                        # 然后尝试相对于shared/inputs目录
+                        inputs_path = self.shared_root / "inputs" / file_path
+                        if inputs_path.exists():
+                            file_path = str(inputs_path)
+                        else:
+                            # 最后尝试相对于项目根目录
+                            file_path = str(self.project_root / file_path)
+                
+                if not os.path.exists(file_path):
+                    self._print_error(f"File not found: {file_path}")
+                    return
+                
+                self._print_info(f"Processing file: {file_path}")
+            
+            # 处理输出格式和路径
+            if not output_format:
+                output_format = config.output.default_format
+            if not output_path:
+                output_path = config.output.output_dir if config.output.output_dir else None
+                
+            self._print_info(f"Output format: {output_format}")
+            if output_path:
+                self._print_info(f"Output path: {output_path}")
+            
+            # 准备命令
+            cmd_parts = ["python", "main.py"]
+            if config.processing.debug_mode:
+                cmd_parts.append("--debug")
+            if file_path:
+                cmd_parts.extend(["--file", file_path])
+            if output_format:
+                cmd_parts.extend(["--format", output_format])
+            if output_path:
+                cmd_parts.extend(["--output", output_path])
+            
+            self._print_info(f"Running: {' '.join(cmd_parts)}")
+            self._print_info("This may take 5-10 minutes for processing...")
+            
+            # 运行分析
+            success, stdout, stderr = self._run_command_with_args(cmd_parts, cwd=self.cli_root, env=env)
+            
+            if success:
+                self._print_success("Analysis completed successfully!")
+                
+                if output_format == 'json':
+                    self._handle_json_output(output_path)
+                else:
+                    self._print_info("Check shared/outputs/ for generated Obsidian vault")
+                    if output_path:
+                        self._copy_output_to_destination(output_path)
+            else:
+                self._print_error("Analysis failed")
+                if stderr:
+                    print(f"Error: {stderr}")
+                    
+        except ImportError as e:
+            self._print_error(f"Failed to import configuration manager: {str(e)}")
+            # 降级到原有逻辑
+            self._print_warning("Falling back to basic configuration...")
+            self._run_basic_analysis(file_path, debug, output_format, output_path, 
+                                    llm_key, llm_base_url, llm_model)
+        except Exception as e:
+            self._print_error(f"Analysis failed with exception: {str(e)}")
+    
+    def _run_basic_analysis(self, file_path=None, debug=False, output_format='obsidian', 
+                           output_path=None, llm_key=None, llm_base_url=None, llm_model=None):
+        """基础分析流程（降级模式）"""
+        # 设置环境变量（临时LLM配置）
+        env = os.environ.copy()
+        if llm_key:
+            env['OPENAI_API_KEY'] = llm_key
+        if llm_base_url:
+            env['OPENAI_BASE_URL'] = llm_base_url
+        if llm_model:
+            env['OPENAI_MODEL'] = llm_model
+        
+        # 准备命令
+        cmd_parts = ["python", "main.py"]
+        if debug:
+            cmd_parts.append("--debug")
+        if file_path:
+            cmd_parts.extend(["--file", file_path])
+        
+        cmd = " ".join(cmd_parts)
+        
+        try:
+            # 使用自定义环境变量运行
+            success, stdout, stderr = self._run_command_with_env(cmd, cwd=self.cli_root, env=env)
+            
+            if success:
+                self._print_success("Analysis completed successfully!")
+                
+                if output_format == 'json':
+                    self._handle_json_output(output_path)
+                else:
+                    self._print_info("Check shared/outputs/ for generated Obsidian vault")
+                    if output_path:
+                        self._copy_output_to_destination(output_path)
+            else:
+                self._print_error("Analysis failed")
+                if stderr:
+                    print(f"Error: {stderr}")
+        except Exception as e:
+            self._print_error(f"Basic analysis failed: {str(e)}")
+    
+    def _run_command_with_args(self, command_args, cwd=None, env=None):
+        """运行带环境变量的命令（参数列表形式，更安全）"""
+        try:
+            result = subprocess.run(
+                command_args, 
+                shell=False,  # 使用参数列表，不需要shell
+                env=env,
+                cwd=cwd,
+                capture_output=True, 
+                text=True
+            )
+            
+            return result.returncode == 0, result.stdout, result.stderr
+        except Exception as e:
+            return False, "", str(e)
+    
+    def _run_command_with_env(self, command, cwd=None, env=None):
+        """运行带环境变量的命令（字符串形式，仅用于兼容性）"""
+        try:
+            if cwd:
+                original_cwd = os.getcwd()
+                os.chdir(cwd)
+            
+            result = subprocess.run(
+                command, 
+                shell=True, 
+                env=env,
+                capture_output=True, 
+                text=True
+            )
+            
+            if cwd:
+                os.chdir(original_cwd)
+                
+            return result.returncode == 0, result.stdout, result.stderr
+        except Exception as e:
+            return False, "", str(e)
+    
+    def _handle_json_output(self, output_path=None):
+        """处理JSON格式输出"""
+        self._print_info("Converting to JSON format...")
+        
+        # 检查是否有生成的Obsidian输出
+        output_dir = self.shared_root / "outputs"
+        if not output_dir.exists() or not any(output_dir.iterdir()):
+            self._print_error("No output generated to convert")
+            return
+        
+        try:
+            # 查找最新的Obsidian vault
+            obsidian_vaults = [d for d in output_dir.iterdir() if d.is_dir()]
+            if not obsidian_vaults:
+                self._print_error("No Obsidian vault found in outputs")
+                return
+            
+            # 使用最新的vault（按修改时间排序）
+            latest_vault = max(obsidian_vaults, key=lambda x: x.stat().st_mtime)
+            
+            # 导入JSON生成器
+            sys.path.insert(0, str(self.cli_root))
+            from src.output.json_generator import create_json_from_obsidian
+            
+            # 确定输出文件路径
+            if output_path:
+                json_file = Path(output_path)
+                if json_file.suffix != '.json':
+                    json_file = json_file.with_suffix('.json')
+            else:
+                # 使用vault名称作为JSON文件名
+                json_file = output_dir / f"{latest_vault.name}.json"
+            
+            # 生成JSON
+            json_data = create_json_from_obsidian(str(latest_vault), str(json_file))
+            
+            self._print_success(f"JSON output generated: {json_file}")
+            
+            # 显示统计信息
+            stats = json_data.get('statistics', {})
+            self._print_info(f"Converted {stats.get('total_nodes', 0)} nodes and {stats.get('total_relationships', 0)} relationships")
+            
+        except ImportError as e:
+            self._print_error(f"Failed to import JSON generator: {str(e)}")
+        except Exception as e:
+            self._print_error(f"Failed to create JSON output: {str(e)}")
+    
+    def _copy_output_to_destination(self, output_path):
+        """复制输出到指定目录"""
+        try:
+            import shutil
+            source_dir = self.shared_root / "outputs"
+            dest_path = Path(output_path)
+            
+            if dest_path.suffix:
+                # 如果指定了文件名，复制到父目录
+                dest_dir = dest_path.parent
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                # 如果是目录，直接复制
+                dest_dir = dest_path
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 复制整个输出目录
+            if source_dir.exists():
+                for item in source_dir.iterdir():
+                    if item.is_dir():
+                        shutil.copytree(item, dest_dir / item.name, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, dest_dir)
+                
+                self._print_success(f"Output copied to: {dest_dir}")
+        except Exception as e:
+            self._print_error(f"Failed to copy output: {str(e)}")
+    
+    def process_web(self, file_path):
+        """通过Web API处理文件"""
+        self._print_header("Processing via Web API")
+        
+        if not self._is_web_running():
+            self._print_error("Web services not running. Start them first: kindle-assistant start")
+            return
+        
+        # 这里可以添加API调用逻辑
+        self._print_info("Web API processing not yet implemented")
+        self._print_info("Use the web interface at http://localhost:3000")
+
+    # ============ 配置和维护命令 ============
+    
+    def init(self):
+        """初始化项目环境"""
+        self._print_header("Initializing Project Environment")
+        
+        # 检查Python环境
+        self._print_info("Checking Python environment...")
+        success, stdout, stderr = self._run_command("python --version", capture_output=True)
+        if success:
+            self._print_success(f"Python: {stdout.strip()}")
+        else:
+            self._print_error("Python not found")
+            return
+        
+        # 安装CLI依赖
+        if (self.cli_root / "requirements.txt").exists():
+            self._print_info("Installing CLI dependencies...")
+            success, stdout, stderr = self._run_command(
+                "pip install -r requirements.txt", 
+                cwd=self.cli_root
+            )
+            if success:
+                self._print_success("CLI dependencies installed")
+            else:
+                self._print_error("Failed to install CLI dependencies")
+                print(stderr)
+        
+        # 检查环境变量
+        env_file = self.cli_root / ".env"
+        if not env_file.exists():
+            self._print_warning("Environment file not found")
+            self._print_info("Copy .env.example to .env and configure your API keys")
+        else:
+            self._print_success("Environment file exists")
+        
+        # 检查Docker
+        self._print_info("Checking Docker...")
+        success, stdout, stderr = self._run_command("docker --version", capture_output=True)
+        if success:
+            self._print_success(f"Docker: {stdout.strip()}")
+        else:
+            self._print_warning("Docker not found (needed for Web services)")
+        
+        self._print_success("Initialization complete!")
+    
+    def config(self, action=None, key=None, value=None, api_key=None, model=None):
+        """配置管理"""
+        self._print_header("Configuration Management")
+        
+        try:
+            # 导入配置管理器
+            sys.path.insert(0, str(self.cli_root))
+            from src.config.config_manager import config_manager
+            
+            if action == "list":
+                config = config_manager.load_config()
+                self._display_config(config)
+            
+            elif action == "list-providers":
+                providers = config_manager.get_llm_providers()
+                self._display_providers(providers)
+            
+            elif action == "set-llm" and key:
+                if not api_key:
+                    self._print_error("API key required for set-llm. Use --api-key parameter")
+                    return
+                
+                success = config_manager.set_provider(key, api_key)
+                if success:
+                    if model:
+                        # 更新模型
+                        config = config_manager.load_config()
+                        config.llm.model = model
+                        config_manager.save_config(config)
+                    
+                    self._print_success(f"LLM provider '{key}' configured successfully")
+                    self._print_info("Use 'config test-llm' to verify the connection")
+                else:
+                    self._print_error(f"Unknown provider: {key}")
+                    self._print_info("Use 'config list-providers' to see available providers")
+            
+            elif action == "test-llm":
+                config = config_manager.load_config()
+                if config_manager.test_llm_connection(config):
+                    self._print_success("LLM configuration is valid")
+                    self._print_info(f"Provider: {config.llm.provider}")
+                    self._print_info(f"Model: {config.llm.model}")
+                else:
+                    self._print_error("LLM configuration test failed")
+                    self._print_info("Check your API key and provider settings")
+            
+            elif action == "set" and key and value:
+                self._print_info(f"Setting {key} = {value}")
+                # 可以在这里添加更多配置项的设置逻辑
+                self._print_warning("Generic config setting not yet implemented")
+            
+            else:
+                self._print_info("Available actions:")
+                self._print_info("  config list                    # Show current configuration")
+                self._print_info("  config list-providers          # Show available LLM providers")
+                self._print_info("  config set-llm PROVIDER --api-key KEY [--model MODEL]")
+                self._print_info("  config test-llm               # Test LLM connection")
+        
+        except ImportError as e:
+            self._print_error(f"Failed to import configuration manager: {str(e)}")
+        except Exception as e:
+            self._print_error(f"Configuration error: {str(e)}")
+    
+    def _display_config(self, config):
+        """显示配置信息"""
+        print(f"{Colors.BOLD}🔧 Current Configuration:{Colors.ENDC}\n")
+        
+        # LLM配置
+        print(f"{Colors.BLUE}LLM Configuration:{Colors.ENDC}")
+        print(f"  Provider: {config.llm.provider}")
+        print(f"  Model: {config.llm.model}")
+        print(f"  Base URL: {config.llm.base_url}")
+        api_key_display = f"{config.llm.api_key[:8]}..." if config.llm.api_key else "Not set"
+        print(f"  API Key: {api_key_display}")
+        
+        # 处理配置
+        print(f"\n{Colors.BLUE}Processing Configuration:{Colors.ENDC}")
+        print(f"  Batch Size: {config.processing.batch_size}")
+        print(f"  Enable Caching: {config.processing.enable_caching}")
+        print(f"  Importance Threshold: {config.processing.importance_threshold}")
+        print(f"  Max Concept Length: {config.processing.max_concept_length}")
+        print(f"  Debug Mode: {config.processing.debug_mode}")
+        
+        # 输出配置
+        print(f"\n{Colors.BLUE}Output Configuration:{Colors.ENDC}")
+        print(f"  Default Format: {config.output.default_format}")
+        print(f"  Output Directory: {config.output.output_dir or 'Default (shared/outputs)'}")
+        print(f"  JSON Pretty Print: {config.output.json_pretty}")
+        print(f"  Obsidian Template: {config.output.obsidian_template}")
+    
+    def _display_providers(self, providers):
+        """显示LLM提供商信息"""
+        print(f"{Colors.BOLD}📡 Available LLM Providers:{Colors.ENDC}\n")
+        
+        for name, info in providers.items():
+            print(f"{Colors.GREEN}• {name.upper()}{Colors.ENDC}")
+            print(f"  Description: {info['description']}")
+            print(f"  Base URL: {info['base_url']}")
+            print(f"  Default Model: {info['model']}")
+            print()
+    
+    def clean(self, target="all"):
+        """清理临时文件"""
+        self._print_header("Cleaning Temporary Files")
+        
+        clean_targets = {
+            "cache": self.shared_root / "data" / "cache",
+            "logs": self.shared_root / "data" / "logs", 
+            "uploads": self.web_root / "backend" / "uploads",
+            "outputs": self.shared_root / "outputs"
+        }
+        
+        if target == "all":
+            targets = clean_targets.values()
+        elif target in clean_targets:
+            targets = [clean_targets[target]]
+        else:
+            self._print_error(f"Unknown target: {target}")
+            self._print_info(f"Available targets: {', '.join(clean_targets.keys())}, all")
+            return
+        
+        for target_path in targets:
+            if target_path.exists():
+                self._print_info(f"Cleaning {target_path}...")
+                success, _, _ = self._run_command(f"rm -rf {target_path}/*")
+                if success:
+                    self._print_success(f"Cleaned {target_path}")
+                else:
+                    self._print_error(f"Failed to clean {target_path}")
+        
+        # 重新创建必要目录
+        self._ensure_directories()
+    
+    def logs(self, service="all", lines=50):
+        """查看日志"""
+        self._print_header("Service Logs")
+        
+        if service in ["all", "web"] and self._is_web_running():
+            self._print_info("Web Service Logs:")
+            self._run_command(f"docker-compose logs --tail={lines}", cwd=self.web_root)
+        
+        # CLI日志
+        log_dir = self.shared_root / "data" / "logs"
+        if log_dir.exists() and service in ["all", "cli"]:
+            self._print_info("CLI Logs:")
+            log_files = list(log_dir.glob("*.log"))
+            for log_file in log_files[-3:]:  # 最近3个日志文件
+                print(f"\n--- {log_file.name} ---")
+                self._run_command(f"tail -n {lines} {log_file}")
+    
+    def health(self):
+        """健康检查"""
+        self._print_header("Health Check")
+        
+        # 检查Web服务健康
+        if self._is_web_running():
+            self._print_info("Checking Web API health...")
+            try:
+                import requests
+                response = requests.get("http://localhost:8000/health", timeout=5)
+                if response.status_code == 200:
+                    self._print_success("Web API: Healthy")
+                else:
+                    self._print_warning(f"Web API: Status {response.status_code}")
+            except:
+                self._print_error("Web API: Unreachable")
+        else:
+            self._print_warning("Web services not running")
+        
+        # 检查磁盘空间
+        self._print_info("Checking disk usage...")
+        success, stdout, stderr = self._run_command("df -h .", capture_output=True)
+        if success:
+            lines = stdout.strip().split('\n')
+            if len(lines) >= 2:
+                print(f"Disk usage: {lines[1].split()[4]} used")
+    
+    def version(self):
+        """显示版本信息"""
+        self._print_header("Version Information")
+        
+        print(f"{Colors.BOLD}Kindle Reading Assistant CLI{Colors.ENDC}")
+        print(f"Version: 2.0.0")
+        print(f"Project: {self.project_root}")
+        print(f"CLI: {self.cli_root}")
+        print(f"Web: {self.web_root}")
+        print(f"Shared: {self.shared_root}")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Kindle Reading Assistant - Unified CLI Management Tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  kindle-assistant init                    # Initialize project environment
+  kindle-assistant start                  # Start web services
+  kindle-assistant analyze                # Run CLI analysis on all files
+  kindle-assistant analyze --debug --file book.html  # Debug analysis on specific file
+  kindle-assistant status                 # Show system status
+  kindle-assistant logs web               # Show web service logs
+  kindle-assistant clean cache            # Clean cache directory
+        """
+    )
+    
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # 服务管理命令
+    subparsers.add_parser('start', help='Start web services')
+    subparsers.add_parser('stop', help='Stop web services')
+    subparsers.add_parser('restart', help='Restart web services')
+    subparsers.add_parser('status', help='Show system status')
+    
+    # 分析处理命令
+    analyze_parser = subparsers.add_parser('analyze', help='Run CLI analysis')
+    analyze_parser.add_argument('--file', help='Specific file to analyze')
+    analyze_parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    analyze_parser.add_argument('--format', choices=['obsidian', 'json'], default='obsidian',
+                               help='Output format: obsidian (default) or json')
+    analyze_parser.add_argument('--output', '-o', help='Output file/directory path')
+    
+    # LLM配置参数
+    analyze_parser.add_argument('--llm-key', help='Custom LLM API key')
+    analyze_parser.add_argument('--llm-base-url', help='Custom LLM base URL')
+    analyze_parser.add_argument('--llm-model', help='Custom LLM model name')
+    
+    process_parser = subparsers.add_parser('process', help='Process via Web API')
+    process_parser.add_argument('file', help='File to process')
+    
+    # 配置和维护命令
+    subparsers.add_parser('init', help='Initialize project environment')
+    
+    config_parser = subparsers.add_parser('config', help='Configuration management')
+    config_parser.add_argument('action', 
+                               choices=['list', 'set', 'set-llm', 'list-providers', 'test-llm'], 
+                               help='Config action')
+    config_parser.add_argument('key', nargs='?', help='Config key or provider name')
+    config_parser.add_argument('value', nargs='?', help='Config value')
+    config_parser.add_argument('--api-key', help='API key for set-llm action')
+    config_parser.add_argument('--model', help='Model name for set-llm action')
+    
+    clean_parser = subparsers.add_parser('clean', help='Clean temporary files')
+    clean_parser.add_argument('target', nargs='?', default='all', 
+                             choices=['all', 'cache', 'logs', 'uploads', 'outputs'],
+                             help='What to clean')
+    
+    logs_parser = subparsers.add_parser('logs', help='View service logs')
+    logs_parser.add_argument('service', nargs='?', default='all',
+                            choices=['all', 'web', 'cli'], help='Which service logs')
+    logs_parser.add_argument('--lines', type=int, default=50, help='Number of lines')
+    
+    subparsers.add_parser('health', help='Health check')
+    subparsers.add_parser('version', help='Show version information')
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        return
+    
+    cli = KindleAssistantCLI()
+    
+    # 路由命令到相应方法
+    if args.command == 'start':
+        cli.start_web()
+    elif args.command == 'stop':
+        cli.stop_web()
+    elif args.command == 'restart':
+        cli.restart_web()
+    elif args.command == 'status':
+        cli.status()
+    elif args.command == 'analyze':
+        cli.analyze(
+            file_path=args.file, 
+            debug=args.debug,
+            output_format=args.format,
+            output_path=args.output,
+            llm_key=args.llm_key,
+            llm_base_url=args.llm_base_url,
+            llm_model=args.llm_model
+        )
+    elif args.command == 'process':
+        cli.process_web(args.file)
+    elif args.command == 'init':
+        cli.init()
+    elif args.command == 'config':
+        cli.config(args.action, args.key, args.value, args.api_key, args.model)
+    elif args.command == 'clean':
+        cli.clean(args.target)
+    elif args.command == 'logs':
+        cli.logs(args.service, args.lines)
+    elif args.command == 'health':
+        cli.health()
+    elif args.command == 'version':
+        cli.version()
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()

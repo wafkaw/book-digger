@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务验证测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>任务验证测试</h1>
+        
+        <div class="controls">
+            <button class="btn" onclick="testTaskValidation()">测试任务验证</button>
+            <button class="btn" onclick="testGraphAPI()">测试图谱API</button>
+            <button class="btn" onclick="clearLog()">清空日志</button>
+        </div>
+        
+        <div id="status" class="status info">准备就绪</div>
+        
+        <div id="log-container">
+            <h3>日志:</h3>
+            <pre id="log"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+        const TEST_TASK_ID = '5dfe1727-9484-433f-87e1-5ed3dc9a1cdc';
+        
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logElement.textContent += logEntry;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+        
+        async function testTaskValidation() {
+            try {
+                updateStatus('正在测试任务验证...', 'info');
+                log(`开始验证任务: ${TEST_TASK_ID}`);
+                
+                const response = await fetch(`${API_BASE}/tasks/${TEST_TASK_ID}`);
+                const responseData = await response.json();
+                
+                log(`任务API响应状态: ${response.status}`);
+                log(`任务API响应数据: ${JSON.stringify(responseData, null, 2)}`);
+                
+                if (responseData.status === 'success') {
+                    updateStatus('✅ 任务验证成功！任务已完成', 'success');
+                    log('任务状态: 成功完成');
+                    
+                    // 测试图谱API
+                    setTimeout(testGraphAPI, 1000);
+                } else {
+                    updateStatus(`❌ 任务状态: ${responseData.status}`, 'error');
+                    log(`任务未完成或失败，状态: ${responseData.status}`);
+                }
+                
+            } catch (error) {
+                console.error('任务验证失败:', error);
+                updateStatus(`❌ 任务验证失败: ${error.message}`, 'error');
+                log(`错误详情: ${error.message}`);
+                log(`错误堆栈: ${error.stack}`);
+            }
+        }
+        
+        async function testGraphAPI() {
+            try {
+                updateStatus('正在测试图谱API...', 'info');
+                log('开始测试图谱数据API...');
+                
+                const response = await fetch(`${API_BASE}/graph/tasks/${TEST_TASK_ID}/graph`);
+                const responseData = await response.json();
+                
+                log(`图谱API响应状态: ${response.status}`);
+                log(`图谱API成功: ${responseData.success}`);
+                
+                if (responseData.success) {
+                    const graphData = responseData.data;
+                    const nodes = graphData.elements.nodes;
+                    const edges = graphData.elements.edges;
+                    
+                    updateStatus(`✅ 图谱API成功！${nodes.length}个节点，${edges.length}条边`, 'success');
+                    log(`图谱节点数: ${nodes.length}`);
+                    log(`图谱边数: ${edges.length}`);
+                    log(`前5个节点: ${nodes.slice(0, 5).map(n => n.data.label).join(', ')}`);
+                } else {
+                    updateStatus(`❌ 图谱API失败: ${responseData.message}`, 'error');
+                    log(`图谱API错误: ${responseData.message}`);
+                }
+                
+            } catch (error) {
+                console.error('图谱API测试失败:', error);
+                updateStatus(`❌ 图谱API测试失败: ${error.message}`, 'error');
+                log(`图谱API错误详情: ${error.message}`);
+            }
+        }
+        
+        // 页面加载时自动测试
+        window.addEventListener('load', function() {
+            log('页面加载完成，准备测试...');
+            setTimeout(testTaskValidation, 2000);
+        });
+    </script>
+</body>
+</html>

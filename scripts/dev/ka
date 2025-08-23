@@ -1,0 +1,10 @@
+#!/bin/bash
+# Kindle Assistant 快捷启动脚本
+
+# 获取脚本所在目录的项目根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." &> /dev/null && pwd)"
+
+# 切换到项目根目录并执行命令
+cd "$PROJECT_ROOT"
+exec ./kindle-assistant "$@"

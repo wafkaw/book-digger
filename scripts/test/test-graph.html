@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱测试</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        #cy {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>知识图谱功能测试</h1>
+        
+        <div class="controls">
+            <button class="btn" onclick="loadGraph()">加载图谱</button>
+            <button class="btn" onclick="fitGraph()">适应屏幕</button>
+            <button class="btn" onclick="changeLayout()">切换布局</button>
+            <span id="status" class="status">准备就绪</span>
+        </div>
+        
+        <div id="cy"></div>
+        
+        <div id="node-info" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px; display: none;">
+            <h3>节点信息</h3>
+            <div id="node-details"></div>
+        </div>
+    </div>
+
+    <script>
+        let cy = null;
+        let currentLayout = 'cose';
+        
+        const API_BASE = 'http://localhost:8000/api/v1';
+        
+        function updateStatus(message, type = 'success') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        async function loadGraph() {
+            try {
+                updateStatus('正在加载图谱数据...');
+                
+                const response = await fetch(`${API_BASE}/graph/tasks/test_task/graph`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const graphData = result.data;
+                    
+                    if (cy) {
+                        cy.destroy();
+                    }
+                    
+                    cy = cytoscape({
+                        container: document.getElementById('cy'),
+                        elements: graphData.elements,
+                        style: graphData.style,
+                        layout: {
+                            name: 'cose',
+                            idealEdgeLength: 50,
+                            nodeOverlap: 10,
+                            refresh: 20,
+                            fit: true,
+                            padding: 30
+                        }
+                    });
+                    
+                    cy.on('tap', 'node', function(evt) {
+                        const node = evt.target;
+                        showNodeInfo(node.data());
+                    });
+                    
+                    cy.on('tap', function(evt) {
+                        if (evt.target === cy) {
+                            hideNodeInfo();
+                        }
+                    });
+                    
+                    updateStatus(`图谱加载成功！包含 ${graphData.elements.nodes.length} 个节点，${graphData.elements.edges.length} 条边`);
+                } else {
+                    updateStatus('图谱加载失败：' + result.message, 'error');
+                }
+                
+            } catch (error) {
+                console.error('加载图谱失败:', error);
+                updateStatus('加载图谱失败: ' + error.message, 'error');
+            }
+        }
+        
+        function showNodeInfo(nodeData) {
+            const info = document.getElementById('node-info');
+            const details = document.getElementById('node-details');
+            
+            details.innerHTML = `
+                <p><strong>ID:</strong> ${nodeData.id}</p>
+                <p><strong>标签:</strong> ${nodeData.label}</p>
+                <p><strong>类型:</strong> ${nodeData.type}</p>
+                <p><strong>分类:</strong> ${nodeData.category}</p>
+                ${nodeData.importance ? `<p><strong>重要性:</strong> ${(nodeData.importance * 100).toFixed(0)}%</p>` : ''}
+            `;
+            
+            info.style.display = 'block';
+        }
+        
+        function hideNodeInfo() {
+            document.getElementById('node-info').style.display = 'none';
+        }
+        
+        function fitGraph() {
+            if (cy) {
+                cy.fit();
+                updateStatus('已适应屏幕');
+            }
+        }
+        
+        function changeLayout() {
+            if (!cy) return;
+            
+            const layouts = ['cose', 'circle', 'grid', 'concentric', 'breadthfirst'];
+            const currentIndex = layouts.indexOf(currentLayout);
+            currentLayout = layouts[(currentIndex + 1) % layouts.length];
+            
+            const layout = cy.layout({
+                name: currentLayout,
+                fit: true,
+                padding: 30
+            });
+            
+            layout.run();
+            updateStatus(`已切换到 ${currentLayout} 布局`);
+        }
+        
+        // 页面加载时自动加载图谱
+        window.addEventListener('load', function() {
+            setTimeout(loadGraph, 1000);
+        });
+    </script>
+</body>
+</html>

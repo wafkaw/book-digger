@@ -91,11 +91,14 @@ dist-ssr/
 *.sln
 *.sw?
 
-# Web app backend
-web_app/backend/uploads/
-web_app/backend/app.db
-web_app/backend/*.db
-web_app/backend/storage/
+# Web app backend (updated paths)
+web/backend/uploads/*
+!web/backend/uploads/.gitkeep
+web/backend/app.db
+web/backend/*.db
+web/backend/*.log
+web/backend/*.pid
+web/backend/storage/
 
 # Celery
 celerybeat-schedule
@@ -108,16 +111,20 @@ dump.rdb
 .dockerignore
 docker-compose.override.yml
 
-# Generated output directories
-obsidian_vault_llm/
-outputs/
-results/
+# Shared resources (runtime data)
+shared/data/cache/
+shared/data/logs/
+shared/outputs/*
+!shared/outputs/.gitkeep
+
+# CLI runtime
+cli/processing_summary.json
 
 # Database files
 *.sqlite
 *.sqlite3
 *.db-journal
 
-# Runtime data
-data/cache/
-processing_summary.json
+# Scripts output
+scripts/dev/*.log
+scripts/test/*.log
